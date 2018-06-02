@@ -175,6 +175,7 @@ class PaperFinder:
 
         ang = -(90 + rect[2]) if rect[2] < -45 else -rect[2]
         (height, width) = frame.shape[:2]
+        print(width, height)
         center = (width // 2, height // 2)
         matrix = cv2.getRotationMatrix2D(center, -ang, 1.0)
 
@@ -188,12 +189,15 @@ class PaperFinder:
         cropped = frame_rot[top_left[1]:bot_right[1], top_left[0]:bot_right[0]]
 
         # Crop hands?
-        ratio = 0.1
+        ratio = 0.10
         (height, width) = cropped.shape[:2]
         rem_h = int(round(ratio * height))
         rem_w = int(round(ratio * width))
         top_left = (rem_w, rem_h)
         bot_right = (width - rem_w, height - rem_h)
+
+        print(width, height)
+        print(rem_w, rem_h)
 
         paper = cropped[top_left[1]:bot_right[1], top_left[0]:bot_right[0]]
 

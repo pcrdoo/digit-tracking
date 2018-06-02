@@ -12,7 +12,7 @@ nb_frame = 0
 patience = 0
 
 # Objects
-paper_finder = PaperFinder(target_patience = 5)
+paper_finder = PaperFinder(target_patience = 15)
 
 while True:
     # Capture frame-by-frame
@@ -35,6 +35,8 @@ while True:
     
     # Found paper, do other shit here
     cv2.imshow("frame", frame)
+
+    print(paper.shape)
     cv2.imshow("paper", paper)
 
     # Block
