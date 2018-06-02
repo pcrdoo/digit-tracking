@@ -122,7 +122,7 @@ class PaperFinder:
         # Nope
         if lines is None:
             self.patience = 0
-            print("Lines is none")
+            # print("Lines is none")
             return False, None
 
         # Keep only relevant lines

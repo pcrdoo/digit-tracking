@@ -29,7 +29,7 @@ while True:
 
     status, paper = paper_finder.find(frame)
     if not status:
-        # print("not find")
+       # print("not find")
         cv2.imshow("frame", frame)
         continue
     
