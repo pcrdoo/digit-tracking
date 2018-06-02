@@ -15,12 +15,11 @@ class DigitClassifier():
                       optimizer=keras.optimizers.Adadelta(),
                       metrics=['accuracy'])
 
-    def predict(self, img):
+    def predict(self, imgs):
         # DO SOME IMG PROCESSING SO THE MODEL CAN ACCEPT IT
 
         # (x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
         # if K.image_data_format() == 'channels_first':
-        #     x_test = x_test.reshape(x_test.shape[0], 1, self.img_rows, self.img_cols)
         # else:
         #     x_test = x_test.reshape(x_test.shape[0], self.img_rows, self.img_cols, 1)
         # x_test = x_test.astype('float32')
@@ -29,4 +28,5 @@ class DigitClassifier():
 
         # img = x_test[:1]
 
-        return self.model.predict(img)[0]
+        imgs = imgs.reshape(imgs.shape[0], self.img_rows, self.img_cols, 1)
+        return self.model.predict(imgs)
