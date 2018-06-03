@@ -125,15 +125,38 @@ class DigitExtractor:
 
         return candidates
 
-    def draw_candidate(self, target, rect, image, confs):
+    def draw_candidate(self, target, rect, image, confs, M = None, TL = None):
         font = cv2.FONT_HERSHEY_SIMPLEX
 
+        # center and box are used later for positioning
+        center = rect[0]
         box = cv2.boxPoints(rect)
+
+        # transform?
+        if TL is not None:
+            center = (center[0] + TL[0], center[1] + TL[1])
+        if M is not None:
+            center_r = np.asarray(center).reshape(1, 1, 2)
+            center_t = cv2.perspectiveTransform(center_r, M)
+            center = (center_t[0][0][0], center_t[0][0][1])
+        if TL is not None:
+            box[:, 0] += TL[0] 
+            box[:, 1] += TL[1]
+        if M is not None:
+            box_r = box.reshape(4, 1, 2)
+            box_t = cv2.perspectiveTransform(box_r, M)
+            box = box_t.reshape(4, 2)
+
+        # we need ints
+        center = np.int0(center)
         box = np.int0(box)
+        
+        # done, draw
+        
         cv2.drawContours(target,[box],0,(0,0,1),2)
 
-        x_off = int(rect[0][0] - image.shape[1] / 2)
-        y_off = int(rect[0][1] - image.shape[0] / 2)
+        x_off = int(center[0] - image.shape[1] / 2)
+        y_off = int(center[1] - image.shape[0] / 2)
         try:
             target[y_off:y_off+image.shape[0], x_off:x_off+image.shape[1]] = grey2rgb(image)
         except ValueError:
@@ -142,4 +165,4 @@ class DigitExtractor:
         max_j = max(range(10), key=lambda j: confs[j])
         max_c = confs[max_j]
 
-        cv2.putText(target,str(max_j),(int(rect[0][0]) - 5, int(rect[0][1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+        cv2.putText(target,str(max_j),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)

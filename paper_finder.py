@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 from geometry import dist, cross, ang_diff, undirected_ang_diff, line_intersection
 
+# DEBUG?
+DBG = False
+
 class PaperFinder:
     def __init__(self, target_patience):
         self.target_patience = target_patience
@@ -104,15 +107,18 @@ class PaperFinder:
         
         # Is it ok?
         if not found:
-            print('not found')
+            if DBG:
+                print('not found')
             return False, None 
         
         if second_diff > 0.5:
-            print('second diff too big')
+            if DBG:
+                print('second diff too big')
             return False, None 
         
         if abs(cross_diff - np.pi/2) > 0.5:
-            print('cross diff')
+            if DBG:
+                print('cross diff')
             return False, None
         
         return True, (A, B, C, D)
@@ -134,10 +140,12 @@ class PaperFinder:
         # Nope
         if lines is None:
             self.patience = 0
-            print("Lines is none")
+            if DBG:
+                print("Lines is none")
             return False, None
 
-        print(len(lines))
+        if DBG:
+            print(len(lines))
 
         # Keep only relevant lines
         new_lines = self.filter_lines(lines)
@@ -145,7 +153,8 @@ class PaperFinder:
         # Nope
         if (len(new_lines) < 4):
             self.patience = 0
-            print("No 4 lines")
+            if DBG:
+                print("No 4 lines")
             return False, None
         
         # Find (A, B, C, D)
@@ -154,7 +163,8 @@ class PaperFinder:
         # Nope
         if not status:
             self.patience = 0
-            print("Abcd")
+            if DBG:
+                print("Abcd")
             return False, None
         
         # Unpack
@@ -196,7 +206,8 @@ class PaperFinder:
         # Nope
         if not self.check_sides(A, B, C, D) or not self.check_sides(C, D, A, B):
             self.patience = 0
-            print("Check sides")
+            if DBG:
+                print("Check sides")
             return False, None
         
         # HW!
@@ -211,13 +222,15 @@ class PaperFinder:
         for pt in pts:
             if pt[0] < 0 or pt[0] > width or pt[1] < 0 or pt[1] > height:
                 self.patience = 0
-                print("Intersection is out")
+                if DBG:
+                    print("Intersection is out")
                 return False, None
         
         # Nope
         if self.patience < self.target_patience:
             self.patience += 1
-            print("patience")
+            if DBG:
+                print("patience on {}".format(self.patience))
             return False, None
 
         # FOUND IT! ####################################################
@@ -276,15 +289,14 @@ class PaperFinder:
         # Crop hands?
         ratio = 0.05 # TODO
         (height, width) = paper_homo.shape[:2]
-        rem_h = int(round(ratio * height))
-        rem_w = int(round(ratio * width))
-        TL = (rem_w, rem_h)
-        BR = (width - rem_w, height - rem_h)
+        cut_h = int(round(ratio * height))
+        cut_w = int(round(ratio * width))
+        TL = (cut_w, cut_h)
+        BR = (width - cut_w, height - cut_h)
 
         paper_cropped = paper_homo[TL[1]:BR[1], TL[0]:BR[0]]
 
         # cv2.imshow('paper', paper_cropped)
 
-        trans = (TL[0], TL[1])
         _, h_inv = cv2.invert(h)
-        return True, (paper_cropped, h_inv, trans)
+        return True, (paper_cropped, h_inv, TL)

@@ -26,6 +26,7 @@ while True:
     nb_frame += 1
     # print("frame {}".format(nb_frame))
     ret, frame = cap.read()
+
     cv2.waitKey(1)
 
     # Skip?
@@ -36,6 +37,11 @@ while True:
             cv2.imshow("paper", paper)
         continue
 
+    # Frame info
+    (height, width) = frame.shape[:2]
+    frame_clean = frame.copy()
+
+    # Find paper
     status, info = paper_finder.find(frame)
     if not status:
        # print("not find")
@@ -45,9 +51,19 @@ while True:
         continue
     
     # Found paper, show
-    paper, invmat, trans = info
+    paper, h_inv, TL = info
     cv2.imshow("frame", frame)
     cv2.imshow("paper", paper)
+
+    """
+    paper_uncrop = np.pad(paper, 
+                          ((TL[1], TL[1]), 
+                           (TL[0], TL[0]), 
+                           (0,0)), 
+                          'constant', 
+                          constant_values = ((128,)))
+    cv2.imshow("paper_uncrop", paper_uncrop)
+    """
 
     # Extract digits
     candidates = ext.extract_digits(paper, clf.img_cols, clf.img_rows)
@@ -57,16 +73,20 @@ while True:
     confidences = clf.predict(all_imgs)
 
     # Draw candidates
-    result = img_as_float(paper)
+    paper_result = img_as_float(paper)
     for i, cand in enumerate(candidates):
         rect = cand.rect
         image = cand.image
-        ext.draw_candidate(result, cand.rect, cand.image, confidences[i])
+        ext.draw_candidate(paper_result, cand.rect, cand.image, confidences[i])
+    cv2.imshow('paper_result', paper_result)
 
-    cv2.imshow('result', result)
-
-    # Transform back and draw on a frame
-
+    # Transform back and draw on original frame
+    frame_result = img_as_float(frame_clean.copy())
+    for i, cand in enumerate(candidates):
+        rect = cand.rect
+        image = cand.image
+        ext.draw_candidate(frame_result, cand.rect, cand.image, confidences[i], h_inv, TL)
+    cv2.imshow('frame_result', frame_result)
 
     # First time you find a paper target patience is one
     # TODO: we should actually 'break' here and start doing
