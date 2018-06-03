@@ -124,4 +124,3 @@ class DigitExtractor:
             candidates.append(DigitCandidate(rects[i], c))
 
         return candidates
-

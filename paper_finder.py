@@ -103,7 +103,16 @@ class PaperFinder:
                 break
         
         # Is it ok?
-        if not found or second_diff > 0.3 or abs(cross_diff - np.pi/2) > 0.1:
+        if not found:
+            print('not found')
+            return False, None 
+        
+        if second_diff > 0.5:
+            print('second diff too big')
+            return False, None 
+        
+        if abs(cross_diff - np.pi/2) > 0.5:
+            print('cross diff')
             return False, None
         
         return True, (A, B, C, D)
@@ -117,13 +126,18 @@ class PaperFinder:
         frame_bin = cv2.adaptiveThreshold(frame_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 13, 5)
         frame_bin = cv2.bitwise_not(frame_bin)
         edges = cv2.Canny(frame, 50, 150)
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 40, minLineLength=90, maxLineGap=30)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 40, minLineLength=90, maxLineGap=20)
+
+        cv2.imshow('edges', edges)
+        # cv2.imshow('lines', lines)
 
         # Nope
         if lines is None:
             self.patience = 0
-            # print("Lines is none")
+            print("Lines is none")
             return False, None
+
+        print(len(lines))
 
         # Keep only relevant lines
         new_lines = self.filter_lines(lines)
@@ -131,7 +145,7 @@ class PaperFinder:
         # Nope
         if (len(new_lines) < 4):
             self.patience = 0
-            #print("No 4 lines")
+            print("No 4 lines")
             return False, None
         
         # Find (A, B, C, D)
@@ -140,7 +154,7 @@ class PaperFinder:
         # Nope
         if not status:
             self.patience = 0
-            #print("Abcd")
+            print("Abcd")
             return False, None
         
         # Unpack
@@ -149,17 +163,30 @@ class PaperFinder:
         # Fix dirs
         A, B = self.fix_dirs(A, B)
         C, D = self.fix_dirs(C, D)
+
+        cv2.circle(frame, (A[0], A[1]), 5, (0, 0, 0), 5)
+        cv2.line(frame,(A[0],A[1]),(A[2],A[3]),(0,0,255),1)
+
+        cv2.circle(frame, (B[0], B[1]), 5, (0, 0, 0), 5)
+        cv2.line(frame,(B[0],B[1]),(B[2],B[3]),(0,0,255),1)
+
+        cv2.circle(frame, (C[0], C[1]), 5, (0, 0, 0), 5)
+        cv2.line(frame,(C[0],C[1]),(C[2],C[3]),(255,0,0),1)
+
+        cv2.circle(frame, (D[0], D[1]), 5, (0, 0, 0), 5)
+        cv2.line(frame,(D[0],D[1]),(D[2],D[3]),(255,0,0),1)
+
         
         # Nope
         if not self.check_sides(A, B, C, D) or not self.check_sides(C, D, A, B):
             self.patience = 0
-            #print("Check sides")
+            print("Check sides")
             return False, None
         
         # Nope
         if self.patience < self.target_patience:
             self.patience += 1
-            #print("patience")
+            print("patience")
             return False, None
         
         # Found it, intersections
@@ -189,16 +216,18 @@ class PaperFinder:
         cropped = frame_rot[top_left[1]:bot_right[1], top_left[0]:bot_right[0]]
 
         # Crop hands?
-        ratio = 0.10
+        ratio = 0.03
         (height, width) = cropped.shape[:2]
         rem_h = int(round(ratio * height))
         rem_w = int(round(ratio * width))
-        top_left = (rem_w, rem_h)
-        bot_right = (width - rem_w, height - rem_h)
+        top_left2 = (rem_w, rem_h)
+        bot_right2 = (width - rem_w, height - rem_h)
 
         print(width, height)
         print(rem_w, rem_h)
 
-        paper = cropped[top_left[1]:bot_right[1], top_left[0]:bot_right[0]]
+        paper = cropped[top_left2[1]:bot_right2[1], top_left2[0]:bot_right2[0]]
 
-        return True, paper
+        trans = (top_left[0] + top_left2[0], top_left[1] + top_left2[1])
+        invmat = cv2.invertAffineTransform(matrix)
+        return True, (paper, invmat, trans)
