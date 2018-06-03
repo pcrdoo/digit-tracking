@@ -13,3 +13,5 @@ https://www.pyimagesearch.com/2015/05/25/basic-motion-detection-and-tracking-wit
 https://www.pyimagesearch.com/2015/09/21/opencv-track-object-movement/
 
 https://www.learnopencv.com/object-tracking-using-opencv-cpp-python/
+
+https://www.pyimagesearch.com/2014/11/17/non-maximum-suppression-object-detection-python/
