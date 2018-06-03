@@ -124,3 +124,22 @@ class DigitExtractor:
             candidates.append(DigitCandidate(rects[i], c))
 
         return candidates
+
+    def draw_candidate(self, target, rect, image, confs):
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        box = cv2.boxPoints(rect)
+        box = np.int0(box)
+        cv2.drawContours(target,[box],0,(0,0,1),2)
+
+        x_off = int(rect[0][0] - image.shape[1] / 2)
+        y_off = int(rect[0][1] - image.shape[0] / 2)
+        try:
+            target[y_off:y_off+image.shape[0], x_off:x_off+image.shape[1]] = grey2rgb(image)
+        except ValueError:
+            pass
+
+        max_j = max(range(10), key=lambda j: confs[j])
+        max_c = confs[max_j]
+
+        cv2.putText(target,str(max_j),(int(rect[0][0]) - 5, int(rect[0][1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)

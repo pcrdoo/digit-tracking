@@ -278,13 +278,13 @@ class PaperFinder:
         (height, width) = paper_homo.shape[:2]
         rem_h = int(round(ratio * height))
         rem_w = int(round(ratio * width))
-        top_left2 = (rem_w, rem_h)
-        bot_right2 = (width - rem_w, height - rem_h)
+        TL = (rem_w, rem_h)
+        BR = (width - rem_w, height - rem_h)
 
-        paper_cropped = paper_homo[top_left2[1]:bot_right2[1], top_left2[0]:bot_right2[0]]
+        paper_cropped = paper_homo[TL[1]:BR[1], TL[0]:BR[0]]
 
         # cv2.imshow('paper', paper_cropped)
 
-        trans = (top_left[0] + top_left2[0], top_left[1] + top_left2[1])
+        trans = (TL[0], TL[1])
         _, h_inv = cv2.invert(h)
         return True, (paper_cropped, h_inv, trans)
