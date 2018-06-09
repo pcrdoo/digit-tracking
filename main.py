@@ -71,6 +71,9 @@ while True:
     nb_frame += 1
     # print("frame {}".format(nb_frame))
     ret, frame = cap.read()
+    print(frame.shape)
+    if frame.shape != (480, 640):
+        frame = cv2.resize(frame, (640, 480))
 
     k = chr(cv2.waitKey(1) & 0xFF)
     #if k == 'l':
