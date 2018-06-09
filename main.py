@@ -27,7 +27,19 @@ while True:
     # print("frame {}".format(nb_frame))
     ret, frame = cap.read()
 
-    cv2.waitKey(1)
+    k = chr(cv2.waitKey(1) & 0xFF)
+    #if k == 'l':
+    #    ext._k += 0.02
+    #    print('k=',ext._k)
+    #elif k == 'k':
+    #    ext._k -= 0.02
+    #    print('k=',ext._k)
+    #elif k == 'p':
+    #    ext._ws += 2
+    #    print('ws=',ext._ws)
+    #elif k == 'o':
+    #    ext._ws -= 2
+    #    print('ws=',ext._ws)
 
     # Skip?
     if skip > 0:
@@ -46,21 +58,18 @@ while True:
     if not status:
        # print("not find")
         cv2.imshow("frame", frame)
-        if paper is not None:
-            cv2.imshow("paper", paper)
         continue
-    
+
     # Found paper, show
     paper, h_inv, TL = info
     cv2.imshow("frame", frame)
-    cv2.imshow("paper", paper)
 
     """
-    paper_uncrop = np.pad(paper, 
-                          ((TL[1], TL[1]), 
-                           (TL[0], TL[0]), 
-                           (0,0)), 
-                          'constant', 
+    paper_uncrop = np.pad(paper,
+                          ((TL[1], TL[1]),
+                           (TL[0], TL[0]),
+                           (0,0)),
+                          'constant',
                           constant_values = ((128,)))
     cv2.imshow("paper_uncrop", paper_uncrop)
     """
@@ -85,7 +94,9 @@ while True:
     for i, cand in enumerate(candidates):
         rect = cand.rect
         image = cand.image
-        ext.draw_candidate(frame_result, cand.rect, cand.image, confidences[i], h_inv, TL)
+        reason = cand.reason
+        ext.draw_candidate(frame_result, cand.rect, cand.image, confidences[i],
+                h_inv, TL, reason)
     cv2.imshow('frame_result', frame_result)
 
     # First time you find a paper target patience is one
@@ -95,8 +106,6 @@ while True:
     continue
 
     # Block
-    while not(cv2.waitKey(1) & 0xFF == ord('p')):
-        pass
     break
 
 # When everything done, release the capture

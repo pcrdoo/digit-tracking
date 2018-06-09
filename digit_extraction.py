@@ -16,33 +16,35 @@ MIN_PIXELS = 50
 BIG_BOX_AREA_FRACTION = 0.3
 
 class DigitCandidate:
-    def __init__(self, rect, image):
+    def __init__(self, rect, image, reason=None):
         self.rect = rect
         self.image = image
+        self.reason = reason
 
 class DigitExtractor:
+
     def rect_eligible(self, rect, sz, area):
         w, h = rect[1]
         if w > h:
             w, h = h, w
 
         if w == 0 or h == 0:
-            return False
+            return True, "N"
 
         q = w / h
         if q < MIN_SIDE_RATIO or q > MAX_SIDE_RATIO:
-            return False
+            return True, "D"
 
         if w * h > BIG_BOX_AREA_FRACTION * area:
-            return False
+            return True, "V"
 
         if sz < MIN_PIXELS:
-            return False
+            return True, "X"
 
         if w * h < MIN_AREA:
-            return False
+            return True, "P"
 
-        return True
+        return True, "O"
 
     def crop_rotrect(self, rect, img):
         center = rect[0]
@@ -53,33 +55,35 @@ class DigitExtractor:
             angle += 90
             size = (size[1], size[0])
 
-        rectpoints = cv2.boxPoints(rect)
-        M = cv2.getRotationMatrix2D(center, -angle, 1)
-        bb = cv2.boundingRect(rectpoints)
-        bbpoints = cv2.boxPoints(((bb[0], bb[1]), (bb[2], bb[3]), 0.0))
-        rectpoints_rot = np.int0(cv2.transform(np.array([rectpoints]), M))[0]
-        govno=np.concatenate((bbpoints, rectpoints_rot)).astype(np.float32)
-        bb = cv2.boundingRect(govno)
+        pts = np.round(cv2.boxPoints(rect))
+        #print(rect)
+        #print(pts)
+        bbox = cv2.boundingRect(pts)
+        x, y, w, h = bbox
+        if np.min(cv2.boxPoints(((x + w/2, y + h/2), (w, h), 0))) < 0:
+            #print(rect)
+            #print(bbox)
+            #print('-')
+            return np.zeros([3,3])
 
-        x, y, w, h = bb
+        #print(img.shape)
+        #print(bbox)
+        #print('-')
 
         roi = img[y:y+h, x:x+w]
-        rows, cols = roi.shape[0], roi.shape[1]
-        if rows <= 0 or cols <= 0:
-            return None
 
-        origin = (center[0] - x, center[1] - y)
-        M = cv2.getRotationMatrix2D(origin, angle, 1)
-        rot = cv2.warpAffine(roi, M, (cols, rows))
+        new_center = (center[0] - x, center[1] - y)
+        M = cv2.getRotationMatrix2D(new_center, angle, 1)
+        roi = cv2.warpAffine(roi, M, (w, h))
+        start = (int(new_center[0] - size[0] / 2)), int((new_center[1] - size[1] / 2))
+        end = (int(new_center[0] + size[0] / 2)), int((new_center[1] + size[1] / 2))
 
-        rect0 = (origin, size, angle)
-        box = cv2.boxPoints(rect0)
-        pts = np.int0(cv2.transform(np.array([box]), M))[0]
-        pts[pts < 0] = 0
+        if start[1] - end[1] == 0 or start[0] - end[0] == 0:
+            return np.zeros([3, 3])
 
-        # crop
-        crop = rot[pts[1][1]:pts[0][1],
-                   pts[1][0]:pts[2][0]]
+        crop = roi[start[1]:end[1], start[0]:end[0]]
+        if crop.shape[0] == 0 or crop.shape[1] == 0:
+            return np.zeros([3, 3])
 
         thresh = threshold_sauvola(crop, window_size=13, k=0.025, r=0.5)
         return binary_opening(crop < thresh, selem=disk(1))
@@ -90,18 +94,19 @@ class DigitExtractor:
         frame_o = rgb2grey(frame_o)
         frame = rescale(frame_o, 0.5)
         gray = rgb2grey(frame)
-        thresh = threshold_sauvola(gray, window_size=17, k=0.04, r=0.2)
+        thresh = threshold_sauvola(gray, window_size=13, k=0.32, r=0.2)
         bin = gray > thresh
         dil = binary_closing(bin)
         dil = binary_erosion(bin, selem=disk(2))
         dil = 1.0 - dil
-        lab, num = label(dil, return_num=True)
+        cv2.imshow("dil",dil)
+        lab, max_label = label(dil, return_num=True)
 
-        if not num:
+        if not max_label:
             return
 
         components = []
-        for i in range(num):
+        for i in range(1, max_label + 1):
             component_o = np.where(lab == i)
             component = (component_o[1], component_o[0])
             sz = component[0].size
@@ -113,23 +118,28 @@ class DigitExtractor:
             sz = c[0].size
             t = np.dstack(c)[0] * 2
             rect = cv2.minAreaRect(t)
-            if self.rect_eligible(rect, sz, area):
-                rects.append(rect)
+            ret,reason= self.rect_eligible(rect, sz, area)
+            if ret:
+                #print(rect)
+                rects.append((rect, reason))
 
-        cropped = [resize(c, (h, w)) if c is not None else
-                None for c in [self.crop_rotrect(rect, frame_o) for rect in rects]]
+        #print('*****')
+        cropped = [(resize(c, (h, w)), reason) if c is not None else
+                None for c, reason in [(self.crop_rotrect(rect, frame_o), reason) for rect,reason in rects]]
         candidates = []
         cropped_with_indexes = [(c, i) for i, c in enumerate(cropped) if c is not None]
         for c, i in cropped_with_indexes:
-            candidates.append(DigitCandidate(rects[i], c))
+            candidates.append(DigitCandidate(rects[i], c[0], c[1]))
 
         return candidates
 
-    def draw_candidate(self, target, rect, image, confs, M = None, TL = None):
+    def draw_candidate(self, target, rect, image, confs, M = None, TL = None, reason = None):
         font = cv2.FONT_HERSHEY_SIMPLEX
 
         # center and box are used later for positioning
+        rect = rect[0]
         center = rect[0]
+        #print(rect)
         box = cv2.boxPoints(rect)
 
         # transform?
@@ -140,7 +150,7 @@ class DigitExtractor:
             center_t = cv2.perspectiveTransform(center_r, M)
             center = (center_t[0][0][0], center_t[0][0][1])
         if TL is not None:
-            box[:, 0] += TL[0] 
+            box[:, 0] += TL[0]
             box[:, 1] += TL[1]
         if M is not None:
             box_r = box.reshape(4, 1, 2)
@@ -150,9 +160,9 @@ class DigitExtractor:
         # we need ints
         center = np.int0(center)
         box = np.int0(box)
-        
+
         # done, draw
-        
+
         cv2.drawContours(target,[box],0,(0,0,1),2)
 
         x_off = int(center[0] - image.shape[1] / 2)
@@ -166,3 +176,4 @@ class DigitExtractor:
         max_c = confs[max_j]
 
         cv2.putText(target,str(max_j),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+        cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
