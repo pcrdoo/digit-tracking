@@ -146,6 +146,11 @@ class PaperFinder:
 
         if DBG:
             print(len(lines))
+        
+        if len(lines) > 100:
+            if DBG:
+                print("Too many lines tbh")
+            return False, None
 
         # Keep only relevant lines
         new_lines = self.filter_lines(lines)
