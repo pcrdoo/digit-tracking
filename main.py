@@ -7,6 +7,7 @@ from skimage import img_as_ubyte, img_as_float
 from paper_finder import PaperFinder
 from digit_extraction import DigitExtractor
 from digit_classifier import DigitClassifier
+from utils import transform_img
 
 # Capture
 cap = cv2.VideoCapture(0)
@@ -15,10 +16,13 @@ skip = 10
 nb_frame = 0
 patience = 0
 
+mnist_img_width = 28
+mnist_img_height = 28
+
 # Objects
 paper_finder = PaperFinder(target_patience = 5)
 paper = None
-clf = DigitClassifier()
+clf = DigitClassifier(mnist_img_height, mnist_img_width)
 ext = DigitExtractor()
 
 def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = None):
@@ -126,7 +130,7 @@ while True:
     candidates = ext.extract_digits(paper)
     if not candidates:
         continue
-    transformed = [clf.transform_img(c.image) for c in candidates]
+    transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
     all_imgs = np.array(transformed)
 
     # Get confidences from the model

@@ -28,20 +28,23 @@ class DigitExtractor:
             w, h = h, w
 
         if w == 0 or h == 0:
-            return True, "N"
+            return False, "N"
+        
+        if w < 4 or h < 4:
+            return False, "F"
 
         q = w / h
         if q < MIN_SIDE_RATIO or q > MAX_SIDE_RATIO:
-            return True, "D"
+            return False, "D"
 
         if w * h > BIG_BOX_AREA_FRACTION * area:
-            return True, "V"
+            return False, "V"
 
         if sz < MIN_PIXELS:
-            return True, "X"
+            return False, "X"
 
         if w * h < MIN_AREA:
-            return True, "P"
+            return False, "P"
 
         return True, "O"
 
