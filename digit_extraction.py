@@ -22,7 +22,6 @@ class DigitCandidate:
         self.reason = reason
 
 class DigitExtractor:
-
     def rect_eligible(self, rect, sz, area):
         w, h = rect[1]
         if w > h:
@@ -64,7 +63,7 @@ class DigitExtractor:
             #print(rect)
             #print(bbox)
             #print('-')
-            return np.zeros([3,3])
+            return None
 
         #print(img.shape)
         #print(bbox)
@@ -79,16 +78,15 @@ class DigitExtractor:
         end = (int(new_center[0] + size[0] / 2)), int((new_center[1] + size[1] / 2))
 
         if start[1] - end[1] == 0 or start[0] - end[0] == 0:
-            return np.zeros([3, 3])
+            return None
 
         crop = roi[start[1]:end[1], start[0]:end[0]]
         if crop.shape[0] == 0 or crop.shape[1] == 0:
-            return np.zeros([3, 3])
+            return None
 
-        thresh = threshold_sauvola(crop, window_size=13, k=0.025, r=0.5)
-        return binary_opening(crop < thresh, selem=disk(1))
+        return crop
 
-    def extract_digits(self, frame_o, w, h):
+    def extract_digits(self, frame_o):
         frame_o = img_as_float(frame_o)
         frame_color = frame_o
         frame_o = rgb2grey(frame_o)
@@ -123,8 +121,9 @@ class DigitExtractor:
                 #print(rect)
                 rects.append((rect, reason))
 
+
         #print('*****')
-        cropped = [(resize(c, (h, w)), reason) if c is not None else
+        cropped = [(c, reason) if c is not None else
                 None for c, reason in [(self.crop_rotrect(rect, frame_o), reason) for rect,reason in rects]]
         candidates = []
         cropped_with_indexes = [(c, i) for i, c in enumerate(cropped) if c is not None]
@@ -133,47 +132,3 @@ class DigitExtractor:
 
         return candidates
 
-    def draw_candidate(self, target, rect, image, confs, M = None, TL = None, reason = None):
-        font = cv2.FONT_HERSHEY_SIMPLEX
-
-        # center and box are used later for positioning
-        rect = rect[0]
-        center = rect[0]
-        #print(rect)
-        box = cv2.boxPoints(rect)
-
-        # transform?
-        if TL is not None:
-            center = (center[0] + TL[0], center[1] + TL[1])
-        if M is not None:
-            center_r = np.asarray(center).reshape(1, 1, 2)
-            center_t = cv2.perspectiveTransform(center_r, M)
-            center = (center_t[0][0][0], center_t[0][0][1])
-        if TL is not None:
-            box[:, 0] += TL[0]
-            box[:, 1] += TL[1]
-        if M is not None:
-            box_r = box.reshape(4, 1, 2)
-            box_t = cv2.perspectiveTransform(box_r, M)
-            box = box_t.reshape(4, 2)
-
-        # we need ints
-        center = np.int0(center)
-        box = np.int0(box)
-
-        # done, draw
-
-        cv2.drawContours(target,[box],0,(0,0,1),2)
-
-        x_off = int(center[0] - image.shape[1] / 2)
-        y_off = int(center[1] - image.shape[0] / 2)
-        try:
-            target[y_off:y_off+image.shape[0], x_off:x_off+image.shape[1]] = grey2rgb(image)
-        except ValueError:
-            pass
-
-        max_j = max(range(10), key=lambda j: confs[j])
-        max_c = confs[max_j]
-
-        cv2.putText(target,str(max_j),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
-        cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)

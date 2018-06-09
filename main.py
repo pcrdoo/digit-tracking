@@ -21,6 +21,51 @@ paper = None
 clf = DigitClassifier()
 ext = DigitExtractor()
 
+def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = None):
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
+    # center and box are used later for positioning
+    rect = rect[0]
+    center = rect[0]
+    #print(rect)
+    box = cv2.boxPoints(rect)
+
+    # transform?
+    if TL is not None:
+        center = (center[0] + TL[0], center[1] + TL[1])
+    if M is not None:
+        center_r = np.asarray(center).reshape(1, 1, 2)
+        center_t = cv2.perspectiveTransform(center_r, M)
+        center = (center_t[0][0][0], center_t[0][0][1])
+    if TL is not None:
+        box[:, 0] += TL[0]
+        box[:, 1] += TL[1]
+    if M is not None:
+        box_r = box.reshape(4, 1, 2)
+        box_t = cv2.perspectiveTransform(box_r, M)
+        box = box_t.reshape(4, 2)
+
+    # we need ints
+    center = np.int0(center)
+    box = np.int0(box)
+
+    # done, draw
+
+    cv2.drawContours(target,[box],0,(0,0,1),2)
+
+    x_off = int(center[0] - image.shape[1] / 2)
+    y_off = int(center[1] - image.shape[0] / 2)
+    try:
+        target[y_off:y_off+image.shape[0], x_off:x_off+image.shape[1]] = grey2rgb(image)
+    except ValueError:
+        pass
+
+    max_j = max(range(10), key=lambda j: confs[j])
+    max_c = confs[max_j]
+
+    cv2.putText(target,str(max_j),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+    #cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+
 while True:
     # Capture frame-by-frame
     nb_frame += 1
@@ -75,8 +120,11 @@ while True:
     """
 
     # Extract digits
-    candidates = ext.extract_digits(paper, clf.img_cols, clf.img_rows)
-    all_imgs = np.array([c.image for c in candidates])
+    candidates = ext.extract_digits(paper)
+    if not candidates:
+        continue
+    transformed = [clf.transform_img(c.image) for c in candidates]
+    all_imgs = np.array(transformed)
 
     # Get confidences from the model
     confidences = clf.predict(all_imgs)
@@ -86,7 +134,7 @@ while True:
     for i, cand in enumerate(candidates):
         rect = cand.rect
         image = cand.image
-        ext.draw_candidate(paper_result, cand.rect, cand.image, confidences[i])
+        draw_candidate(paper_result, cand.rect, transformed[i], confidences[i])
     cv2.imshow('paper_result', paper_result)
 
     # Transform back and draw on original frame
@@ -95,8 +143,7 @@ while True:
         rect = cand.rect
         image = cand.image
         reason = cand.reason
-        ext.draw_candidate(frame_result, cand.rect, cand.image, confidences[i],
-                h_inv, TL, reason)
+        draw_candidate(frame_result, cand.rect, transformed[i], confidences[i], h_inv, TL, reason)
     cv2.imshow('frame_result', frame_result)
 
     # First time you find a paper target patience is one

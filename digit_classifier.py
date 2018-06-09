@@ -1,6 +1,11 @@
 from tensorflow.python.keras.models import model_from_json
 from tensorflow.python import keras
 from tensorflow.python.keras import backend as K
+from skimage.transform import rescale
+from skimage.filters import threshold_sauvola
+from skimage.morphology import binary_opening, disk, binary_dilation
+from math import ceil, floor
+import numpy as np
 import json
 
 class DigitClassifier():
@@ -15,6 +20,33 @@ class DigitClassifier():
                       optimizer=keras.optimizers.Adadelta(),
                       metrics=['accuracy'])
 
+    def transform_img(self, img):
+        thresh = threshold_sauvola(img, window_size=13, k=0.025, r=0.5)
+        img = img < thresh
+        print(img.shape)
+
+        [h, w] = img.shape
+        if w > h:
+            factor = self.img_cols / w
+            print(factor)
+            img = rescale(img, factor)
+            print('by w')
+            diff = (self.img_rows - img.shape[0]) / 2
+
+            img = np.pad(img, ((int(ceil(diff)), int(floor(diff))), (0, 0)),
+                    'constant', constant_values=((0,)))
+        else:
+            factor = self.img_rows / h
+            print(factor)
+            img = rescale(img, factor)
+            print('by h',img.shape)
+            diff = (self.img_cols - img.shape[1]) / 2
+
+            img = np.pad(img, ((0, 0), (int(ceil(diff)), int(floor(diff)))),
+                    'constant', constant_values=((0,)))
+
+        return binary_dilation(img)
+
     def predict(self, imgs):
         # DO SOME IMG PROCESSING SO THE MODEL CAN ACCEPT IT
 
@@ -28,5 +60,6 @@ class DigitClassifier():
 
         # img = x_test[:1]
 
+        print(imgs.shape)
         imgs = imgs.reshape(imgs.shape[0], self.img_rows, self.img_cols, 1)
         return self.model.predict(imgs)
