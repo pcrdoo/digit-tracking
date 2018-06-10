@@ -23,6 +23,10 @@ class DigitCandidate:
         self.image = image
         self.reason = reason
 
+        self.guess = -1 
+        self.conf = 1
+        self.shaprness = 0
+
 class DigitExtractor:
     def __init__(self):
         self._k = 0.45
@@ -71,6 +75,9 @@ class DigitExtractor:
         bbox = cv2.boundingRect(pts)
         x, y, w, h = bbox
         
+        if x < 0 or y < 0 or x + w > img.shape[1] or y + h > img.shape[0]:
+            return None
+
         if x < 0:
             x = 0
         if y < 0:
@@ -113,8 +120,10 @@ class DigitExtractor:
         frame = rescale(frame_o, 0.5)
         gray = rgb2grey(frame)
         cv2.imshow('gray', gray)
+
         gray = equalize_hist(gray)
         cv2.imshow('gray2', gray)
+
 
         thresh = threshold_sauvola(gray, window_size=self._ws, k=self._k, r=self._r)
         bin = gray > thresh

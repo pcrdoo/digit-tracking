@@ -25,7 +25,7 @@ paper = None
 clf = DigitClassifier(mnist_img_height, mnist_img_width)
 ext = DigitExtractor()
 
-def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = None, pretty = False):
+def draw_candidate(target, rect, image, guess, confs, M = None, TL = None, reason = None, pretty = False):
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     # center and box are used later for positioning
@@ -56,6 +56,9 @@ def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = Non
     # actual bounding box?
     x,y,w,h = cv2.boundingRect(box)
 
+    #print('{} and {} and {} and {}'.format(x, y, x + w, y + h))
+    #print('sz = {} and {}'.format(target.shape[0], target.shape[1]))
+
     # done, draw
     if not pretty:
         cv2.drawContours(target,[box],0,(0,0,1),2)
@@ -69,13 +72,10 @@ def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = Non
     else:
         cv2.rectangle(target,(x,y),(x+w,y+h),(255,0,255),1)
 
-    max_j = max(range(10), key=lambda j: confs[j])
-    max_c = confs[max_j]
-
     if not pretty:
-        cv2.putText(target,str(max_j),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+        cv2.putText(target,str(guess),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
     else:
-        cv2.putText(target,str(max_j), (int(x + w/2 - 6), int(y) - 2), font, 0.6, (1,0,1), 2, cv2.LINE_AA)
+        cv2.putText(target,str(guess), (int(x + w/2 - 6), int(y) - 2), font, 0.6, (1,0,1), 2, cv2.LINE_AA)
     
     #cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
 
@@ -107,6 +107,8 @@ while True:
     elif k == 'n':
         ext._r -= 0.01
         print('r=',ext._r)
+    elif k == 'q':
+        zzz = input()
 
     # Skip?
     if skip > 0:
@@ -145,6 +147,15 @@ while True:
     candidates = ext.extract_digits(paper)
     if not candidates:
         continue
+
+    # Sharpness
+    for cand in candidates:
+        img = grey2rgb(cand.image)
+        laplacian = cv2.Laplacian(cand.image,cv2.CV_64F)
+        sharpness = np.max(laplacian)
+        cand.sharpness = sharpness
+
+    # Transform images
     transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
 
     #cv2.imshow("first transformed", transformed[0])
@@ -157,22 +168,56 @@ while True:
     all_imgs = np.array(transformed)
     
     # Get confidences from the model
+    filtered_candidates = []
+    CONF_THRESH = 0.5
+
+    # Threshold
     confidences = clf.predict(all_imgs)
-    #print("===== CONFIDENCES ==== ")
-    #for i in range(len(confidences)):
-    #    verdict = "Digit {}:".format(i)
-    #    for j in range(10):
-    #        if confidences[i][j] > 0.01:
-    #            verdict += '{} ({}%) '.format(j, round(confidences[i][j]*100))
-    #    print(verdict)
-    #print("===== =========== ==== ")
+    for i, cand in enumerate(candidates):
+        # set guess/conf and thresh on that
+        cand.guess = max(range(10), key=lambda j: confidences[i][j])
+        cand.conf = confidences[i][cand.guess]
+        if cand.conf <= CONF_THRESH:
+            continue
+        
+        # finger filter: if rect center is in banned area => remove
+        center = cand.rect[0][0]
+        c_x, c_y = center
+        p_h, p_w, _ = paper.shape
+        BAN_STRIP_H = p_h/3
+        BAN_STRIP_W = p_w/18
+        if c_x < BAN_STRIP_W and abs(p_h/2 - c_y) < BAN_STRIP_H/2:
+            continue
+        c_x = p_w - c_x
+        if c_x < BAN_STRIP_W and abs(p_h/2 - c_y) < BAN_STRIP_H/2:
+            continue
+
+        # push
+        filtered_candidates.append(cand)
+        #print("{} -> {}".format(cand.guess, cand.SH))
+    #print("DONE")
+
+    # Move back 
+    candidates = filtered_candidates
+
+    # Print confidences
+    print_confs = False 
+    if print_confs:
+        print("===== CONFIDENCES ==== ")
+        for i in range(len(confidences)):
+            verdict = "Digit {}:".format(i)
+            for j in range(10):
+                if confidences[i][j] > 0.01:
+                    verdict += '{} ({}%) '.format(j, round(confidences[i][j]*100))
+            print(verdict)
+        print("===== =========== ==== ")
 
     # Draw candidates
     paper_result = img_as_float(paper)
     for i, cand in enumerate(candidates):
         rect = cand.rect
         image = cand.image
-        draw_candidate(paper_result, cand.rect, transformed[i], confidences[i])
+        draw_candidate(paper_result, cand.rect, transformed[i], cand.guess, confidences[i])
     cv2.imshow('paper_result', paper_result)
 
     # Transform back and draw on original frame
@@ -181,8 +226,10 @@ while True:
         rect = cand.rect
         image = cand.image
         reason = cand.reason
-        draw_candidate(frame_result, cand.rect, transformed[i], confidences[i], h_inv, TL, reason, pretty=True)
+        draw_candidate(frame_result, cand.rect, transformed[i], cand.guess, confidences[i], h_inv, TL, reason, pretty=True)
     cv2.imshow('frame_result', frame_result)
+
+    #print("DONE")
 
     # First time you find a paper target patience is one
     # TODO: we should actually 'break' here and start doing

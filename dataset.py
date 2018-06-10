@@ -5,7 +5,7 @@ from tensorflow.python.keras.datasets import mnist
 from tensorflow.python.keras import backend as K
 from digit_extraction import DigitExtractor
 from skimage import img_as_float
-from skimage.color import grey2rgb
+from skimage.color import label2rgb, rgb2grey, grey2rgb
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
@@ -52,9 +52,39 @@ class MnistDataset:
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')
 
+        # for i in range()
+
+
+
+        img = x_train[3]
+        print(img.shape)
+        img_rgb = grey2rgb(img).astype(np.uint8)
+        print(img_rgb.shape)
+        edges = cv2.Canny(img_rgb, 50, 150)
+        #plt.imshow(edges, cmap='gist_gray')
+        #plt.show()
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 40, minLineLength=90, maxLineGap=20)
+        print(lines)
+
+        # HEY
+
+
         # normalize
         x_train /= 255
         x_test /= 255
+
+        arr = dict()
+        for i in range(60000):
+            if y_train[i] == 1:
+                print(i)
+                plt.imshow(x_train[i], cmap='gist_gray')
+                plt.colorbar()
+                plt.show()
+                zzz = input()
+            if y_train[i] not in arr:
+                arr[y_train[i]] = 0
+            arr[y_train[i]] += 1
+        print(arr)
 
         # augment?
         if augmentation == 'pad':
@@ -83,4 +113,4 @@ class MnistDataset:
         self.x_train, self.x_test = x_train, x_test 
         self.y_train, self.y_test = y_train, y_test
     
-# mn = MnistDataset('pad')
+mn = MnistDataset('pad')

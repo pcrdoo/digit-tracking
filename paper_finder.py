@@ -277,9 +277,9 @@ class PaperFinder:
 
         # pts = [top_left, top_right, bot_right, bot_left]
         tgt = [(0, 0), (width, 0), (width, height), (0, height)]
-        h, status = cv2.findHomography(np.asarray(pts), np.asarray(tgt))
+        h_mat, status = cv2.findHomography(np.asarray(pts), np.asarray(tgt))
 
-        paper_homo = cv2.warpPerspective(frame_clean, h, (width, height))
+        paper_homo = cv2.warpPerspective(frame_clean, h_mat, (width, height))
 
         # OLD: box approach
         """
@@ -312,8 +312,9 @@ class PaperFinder:
         BR = (width - cut_w, height - cut_h)
 
         paper_cropped = paper_homo[TL[1]:BR[1], TL[0]:BR[0]]
+        #paper_cropped[0:h, 0:w] = 0
 
         # cv2.imshow('paper', paper_cropped)
 
-        _, h_inv = cv2.invert(h)
+        _, h_inv = cv2.invert(h_mat)
         return True, (paper_cropped, h_inv, TL)
