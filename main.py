@@ -3,6 +3,7 @@ import numpy as np
 import math
 from skimage.color import grey2rgb
 from skimage import img_as_ubyte, img_as_float
+from skimage.exposure import equalize_hist
 
 from paper_finder import PaperFinder
 from digit_extraction import DigitExtractor
@@ -28,11 +29,33 @@ paper = None
 clf = DigitClassifier(mnist_img_height, mnist_img_width)
 ext = DigitExtractor(IMSHOW_DBG)
 
+def inverse_transform(rect, M, TL):
+    # center and box are used later for positioning
+    center = rect[0]
+    box = cv2.boxPoints(rect)
+
+    # transform?
+    if TL is not None:
+        center = (center[0] + TL[0], center[1] + TL[1])
+    if M is not None:
+        center_r = np.asarray(center).reshape(1, 1, 2)
+        center_t = cv2.perspectiveTransform(center_r, M)
+        center = (center_t[0][0][0], center_t[0][0][1])
+    if TL is not None:
+        box[:, 0] += TL[0]
+        box[:, 1] += TL[1]
+    if M is not None:
+        box_r = box.reshape(4, 1, 2)
+        box_t = cv2.perspectiveTransform(box_r, M)
+        box = box_t.reshape(4, 2)
+
+    box = np.int0(box)
+    return cv2.minAreaRect(box)
+
 def draw_candidate(target, rect, image, guess, confs, M = None, TL = None, reason = None, pretty = False):
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     # center and box are used later for positioning
-    rect = rect[0]
     center = rect[0]
     #print(rect)
     box = cv2.boxPoints(rect)
@@ -186,7 +209,7 @@ while True:
             continue
         
         # finger filter: if rect center is in banned area => remove
-        center = cand.rect[0][0]
+        center = cand.rect[0]
         c_x, c_y = center
         p_h, p_w, _ = paper.shape
         BAN_STRIP_H = p_h/3
@@ -238,16 +261,59 @@ while True:
     else:
         cv2.imshow('number-tracking', frame_result)
 
-    #print("DONE")
+    for c in candidates:
+        c.rect = inverse_transform(c.rect, h_inv, TL)
+        c.dimensions = c.rect[1]
 
-    # First time you find a paper target patience is one
-    # TODO: we should actually 'break' here and start doing
-    # incremental bullshit
-    paper_finder.target_patience = 1
-    continue
-
-    # Block
     break
+
+first_cd = candidates
+idx = 0
+show_all = True
+show_old = False
+show_next_frame = True
+orig_frame = frame
+
+def draw_rotrect(r, img, col):
+    box = cv2.boxPoints(r)
+    box = np.int0(box)
+    cv2.drawContours(img,[box],0,col,2)
+
+while True:
+    #if not ext.tracked:
+    ret, frame = cap.read()
+    candidates = ext.track_digits(candidates, frame)
+
+    k = chr(cv2.waitKey(1) & 0xFF)
+    if k == 'r':
+        idx += 1
+        print('Showing cand', idx)
+    elif k == 'e':
+        idx -= 1
+        print('Showing cand', idx)
+    elif k == 'a':
+        show_all = not show_all
+        print('Show all', show_all)
+    elif k == 'f':
+        show_next_frame = not show_next_frame
+        print('Showing next frame', show_next_frame)
+    elif k == 'o':
+        show_old = not show_old
+        print('Showing old cands',show_old)
+
+    frame_result = img_as_float(frame.copy()) if show_next_frame else img_as_float(orig_frame.copy())
+    if show_all:
+        if show_old:
+            for c in first_cd:
+                draw_rotrect(c.rect, frame_result, (1,0,0))
+        for c in candidates:
+            draw_rotrect(c.rect, frame_result, (0,0,1))
+    else:
+        if not (idx >= len(candidates) or idx >= len(first_cd) or idx < 0):
+            draw_rotrect(first_cd[idx].rect, frame_result, (1,0,0))
+            draw_rotrect(candidates[idx].rect, frame_result, (0,0,1))
+
+    cv2.imshow('frame_result', frame_result)
 
 # When everything done, release the capture
 cap.release()

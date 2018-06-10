@@ -2,6 +2,9 @@ import math
 import cv2
 import numpy as np
 from geometry import dist, cross, ang_diff, undirected_ang_diff, line_intersection
+from skimage import img_as_float,img_as_ubyte
+from skimage.color import label2rgb, rgb2grey, grey2rgb
+from skimage.filters import threshold_sauvola
 
 # DEBUG?
 DBG = False
@@ -141,7 +144,7 @@ class PaperFinder:
         #frame_bin = cv2.adaptiveThreshold(frame_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 13, 5)
         #frame_bin = cv2.bitwise_not(frame_bin)
         edges = cv2.Canny(frame, 50, 150)
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 40, minLineLength=90, maxLineGap=20)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 40, minLineLength=95, maxLineGap=10)
 
         #cv2.imshow('fn', frame)
         #cv2.imshow('edges', edges)
