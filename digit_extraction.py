@@ -5,8 +5,10 @@ from skimage.morphology import binary_erosion, binary_closing, binary_opening, d
 from skimage.measure import label, regionprops
 from skimage.color import label2rgb, rgb2grey, grey2rgb
 from skimage.transform import rescale, resize
+from skimage.exposure import equalize_hist
 from math import sqrt
 import numpy as np
+import math 
 
 # http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_gui/py_video_display/py_video_display.html
 MIN_SIDE_RATIO = 0.20
@@ -22,6 +24,11 @@ class DigitCandidate:
         self.reason = reason
 
 class DigitExtractor:
+    def __init__(self):
+        self._k = 0.45
+        self._r = 1.02
+        self._ws = 11
+
     def rect_eligible(self, rect, sz, area):
         w, h = rect[1]
         if w > h:
@@ -47,59 +54,62 @@ class DigitExtractor:
             return False, "P"
 
         return True, "O"
-
+    
     def crop_rotrect(self, rect, img):
         center = rect[0]
+        rect_x, rect_y = center
         size = rect[1]
+        rect_w, rect_h = size
         angle = rect[2]
 
-        if size[1] < size[0]:
-            angle += 90
-            size = (size[1], size[0])
+        if angle < -45:
+            ang_rot = 90 + angle 
+        else:
+            ang_rot = angle
 
         pts = np.round(cv2.boxPoints(rect))
-        #print(rect)
-        #print(pts)
         bbox = cv2.boundingRect(pts)
         x, y, w, h = bbox
         if np.min(cv2.boxPoints(((x + w/2, y + h/2), (w, h), 0))) < 0:
-            #print(rect)
-            #print(bbox)
-            #print('-')
             return None
-
-        #print(img.shape)
-        #print(bbox)
-        #print('-')
 
         roi = img[y:y+h, x:x+w]
 
-        new_center = (center[0] - x, center[1] - y)
-        M = cv2.getRotationMatrix2D(new_center, angle, 1)
+        new_center = (rect_x - x, rect_y - y)
+        new_c_x, new_c_y = new_center
+
+        M = cv2.getRotationMatrix2D(new_center, ang_rot, 1)
         roi = cv2.warpAffine(roi, M, (w, h))
-        start = (int(new_center[0] - size[0] / 2)), int((new_center[1] - size[1] / 2))
-        end = (int(new_center[0] + size[0] / 2)), int((new_center[1] + size[1] / 2))
 
-        if start[1] - end[1] == 0 or start[0] - end[0] == 0:
-            return None
+        # rotate bounding box
+        box = cv2.boxPoints((new_center, size, angle))
+        pts = np.int0(cv2.transform(np.array([box]), M))[0]    
+        pts[pts < 0] = 0
 
-        crop = roi[start[1]:end[1], start[0]:end[0]]
-        if crop.shape[0] == 0 or crop.shape[1] == 0:
-            return None
+        first_row = np.min(pts[:, 1])
+        last_row = np.max(pts[:, 1])
+        first_col = np.min(pts[:, 0])
+        last_col = np.max(pts[:, 0])
 
-        return crop
+        img_crop = roi[first_row:last_row,first_col:last_col]
+        
+        return img_crop
 
     def extract_digits(self, frame_o):
         frame_o = img_as_float(frame_o)
-        frame_color = frame_o
         frame_o = rgb2grey(frame_o)
         frame = rescale(frame_o, 0.5)
         gray = rgb2grey(frame)
-        thresh = threshold_sauvola(gray, window_size=13, k=0.32, r=0.2)
+        cv2.imshow('gray', gray)
+        gray = equalize_hist(gray)
+        cv2.imshow('gray2', gray)
+
+        thresh = threshold_sauvola(gray, window_size=self._ws, k=self._k, r=self._r)
         bin = gray > thresh
         dil = binary_closing(bin)
         dil = binary_erosion(bin, selem=disk(2))
         dil = 1.0 - dil
+        cv2.imshow('dil', dil)
         lab, max_label = label(dil, return_num=True)
 
         if not max_label:

@@ -80,21 +80,24 @@ while True:
         frame = cv2.resize(frame, (640, 480))
 
     k = chr(cv2.waitKey(1) & 0xFF)
-    #if k == 'l':
-    #    x = input()
-    # 
-    #if k == 'l':
-    #    ext._k += 0.02
-    #    print('k=',ext._k)
-    #elif k == 'k':
-    #    ext._k -= 0.02
-    #    print('k=',ext._k)
-    #elif k == 'p':
-    #    ext._ws += 2
-    #    print('ws=',ext._ws)
-    #elif k == 'o':
-    #    ext._ws -= 2
-    #    print('ws=',ext._ws)
+    if k == 'l':
+        ext._k += 0.01
+        print('k=',ext._k)
+    elif k == 'k':
+        ext._k -= 0.01
+        print('k=',ext._k)
+    elif k == 'p':
+        ext._ws += 2
+        print('ws=',ext._ws)
+    elif k == 'o':
+        ext._ws -= 2
+        print('ws=',ext._ws)
+    elif k == 'm':
+        ext._r += 0.01
+        print('r=',ext._r)
+    elif k == 'n':
+        ext._r -= 0.01
+        print('r=',ext._r)
 
     # Skip?
     if skip > 0:
@@ -146,14 +149,14 @@ while True:
     
     # Get confidences from the model
     confidences = clf.predict(all_imgs)
-    print("===== CONFIDENCES ==== ")
-    for i in range(len(confidences)):
-        verdict = "Digit {}:".format(i)
-        for j in range(10):
-            if confidences[i][j] > 0.01:
-                verdict += '{} ({}%) '.format(j, round(confidences[i][j]*100))
-        print(verdict)
-    print("===== =========== ==== ")
+    #print("===== CONFIDENCES ==== ")
+    #for i in range(len(confidences)):
+    #    verdict = "Digit {}:".format(i)
+    #    for j in range(10):
+    #        if confidences[i][j] > 0.01:
+    #            verdict += '{} ({}%) '.format(j, round(confidences[i][j]*100))
+    #    print(verdict)
+    #print("===== =========== ==== ")
 
     # Draw candidates
     paper_result = img_as_float(paper)
