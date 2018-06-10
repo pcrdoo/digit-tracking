@@ -16,7 +16,10 @@ MAX_SIDE_RATIO = 1.30
 MIN_AREA = 14 * 14
 MIN_PIXELS = 50
 BIG_BOX_AREA_FRACTION = 0.3
-MAGICNA_PATKA = 200
+MAGICNA_PATKA = 250
+
+MAX_SIZE_DIFF = 45
+MAX_POS_DIFF = 80
 
 class DigitCandidate:
     def __init__(self, rect, image, reason=None):
@@ -266,7 +269,7 @@ class DigitExtractor:
 
                     #print('r=',r,'cr=',c.rect,'cd=',c.dimensions)
                     #print('ds=',ds,'dp=',dp,'da=',da)
-                    if ds < 30 and dp < 50:
+                    if ds < MAX_SIZE_DIFF and dp < MAX_POS_DIFF:
                         filt_cands.append(r)
 
                 best_score = -1
