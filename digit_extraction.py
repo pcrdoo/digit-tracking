@@ -19,6 +19,7 @@ BIG_BOX_AREA_FRACTION = 0.3
 
 class DigitCandidate:
     def __init__(self, rect, image, reason=None):
+
         self.rect = rect
         self.image = image
         self.reason = reason
@@ -28,7 +29,8 @@ class DigitCandidate:
         self.shaprness = 0
 
 class DigitExtractor:
-    def __init__(self):
+    def __init__(self, IMSHOW_DBG):
+        self.IMSHOW_DBG = IMSHOW_DBG
         self._k = 0.45
         self._r = 1.02
         self._ws = 11
@@ -119,10 +121,13 @@ class DigitExtractor:
         frame_o = rgb2grey(frame_o)
         frame = rescale(frame_o, 0.5)
         gray = rgb2grey(frame)
-        cv2.imshow('gray', gray)
+        if self.IMSHOW_DBG:
+            cv2.imshow('gray', gray)
 
         gray = equalize_hist(gray)
-        cv2.imshow('gray2', gray)
+       
+        if self.IMSHOW_DBG:
+            cv2.imshow('gray2', gray)
 
 
         thresh = threshold_sauvola(gray, window_size=self._ws, k=self._k, r=self._r)
@@ -130,7 +135,8 @@ class DigitExtractor:
         dil = binary_closing(bin)
         dil = binary_erosion(bin, selem=disk(2))
         dil = 1.0 - dil
-        cv2.imshow('dil', dil)
+        if self.IMSHOW_DBG:
+            cv2.imshow('dil', dil)
         lab, max_label = label(dil, return_num=True)
 
         if not max_label:

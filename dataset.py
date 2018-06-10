@@ -40,6 +40,54 @@ class MnistDataset:
             padded.append(trans)
         return np.stack(padded)
 
+    from skimage.measure import label, regionprops
+    def fix_one(self, img):
+
+        ret,thresh = cv2.threshold(img,1,255,0)
+        # HEY 
+        lab, max_label = label(thresh, return_num=True)
+
+        rat = 0
+        largest_comp = 0
+       
+        for i in range(1, max_label+1):
+            component_o = np.where(lab == i)
+            component = (component_o[1], component_o[0])
+            filled_px = component[0].size
+
+            sz = component[0].size
+            t = np.dstack(component)[0]
+            rect = cv2.minAreaRect(t)
+            box = np.int0(cv2.boxPoints(rect))
+            ar = rect[1][0] * rect[1][1]
+
+            if ar == 0:
+                continue
+
+            if filled_px > largest_comp:
+                largest_comp = filled_px
+                rat = filled_px / ar
+
+        if rat > 0.9:
+            # surely we can augment
+            # augment now
+            x = np.min(box[:, 0])
+            y = np.min(box[:, 1])
+            center = (x, y)
+            M = cv2.getRotationMatrix2D(center, -30, 1)
+            img2 = cv2.warpAffine(img, M, img.shape, borderMode=cv2.BORDER_REPLICATE)
+
+            mask = np.zeros(img.shape)
+            mask[y:y+10, :] = 1
+            img2 *= mask
+
+
+            img3 = np.maximum(img, img2)
+
+            return img3
+
+        return None
+
     def __init__(self, augmentation):
         # input image dimensions
         img_rows, img_cols = (28, 28)
@@ -52,22 +100,28 @@ class MnistDataset:
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')
 
-        # for i in range()
+        # FIX ONES
+        nws = []
+        all = []
+        idxs = []
+        for i in range(60000):
+            if y_train[i] == 1:
+                idxs.append(i)
+                all.append(x_train[i])
+                img = x_train[i]
+                nw = self.fix_one(img) #new_stuff
+                if nw is not None:
+                    nws.append(nw)
+        # sample!
+        old_cnt = len(all) - len(nws)
+        import random
+        randIndex = random.sample(range(len(all)), old_cnt)
+        randIndex.sort()
+        sampled = [all[i] for i in randIndex]
+        nws.extend(sampled)
 
-
-
-        img = x_train[3]
-        print(img.shape)
-        img_rgb = grey2rgb(img).astype(np.uint8)
-        print(img_rgb.shape)
-        edges = cv2.Canny(img_rgb, 50, 150)
-        #plt.imshow(edges, cmap='gist_gray')
-        #plt.show()
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, 40, minLineLength=90, maxLineGap=20)
-        print(lines)
-
-        # HEY
-
+        for i in range(len(idxs)):
+            x_train[idxs[i]] = nws[i]
 
         # normalize
         x_train /= 255

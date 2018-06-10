@@ -9,6 +9,9 @@ from digit_extraction import DigitExtractor
 from digit_classifier import DigitClassifier
 from utils import transform_img
 
+# IMSHOW DBG
+IMSHOW_DBG = False
+
 # Capture
 cap = cv2.VideoCapture(0)
 
@@ -23,7 +26,7 @@ mnist_img_height = 28
 paper_finder = PaperFinder(target_patience = 5)
 paper = None
 clf = DigitClassifier(mnist_img_height, mnist_img_width)
-ext = DigitExtractor()
+ext = DigitExtractor(IMSHOW_DBG)
 
 def draw_candidate(target, rect, image, guess, confs, M = None, TL = None, reason = None, pretty = False):
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -113,9 +116,10 @@ while True:
     # Skip?
     if skip > 0:
         skip -= 1
-        cv2.imshow("frame", frame)
-        if paper is not None:
-            cv2.imshow("paper", paper)
+        cv2.imshow("number-tracking", frame)
+        if IMSHOW_DBG:
+            if paper is not None:
+                cv2.imshow("paper", paper)
         continue
 
     # Frame info
@@ -126,12 +130,13 @@ while True:
     status, info = paper_finder.find(frame)
     if not status:
        # print("not find")
-        cv2.imshow("frame", frame)
+        cv2.imshow("number-tracking", frame)
         continue
 
     # Found paper, show
     paper, h_inv, TL = info
-    cv2.imshow("frame", frame)
+    if IMSHOW_DBG:
+        cv2.imshow("number-tracking", frame)
 
     """
     paper_uncrop = np.pad(paper,
@@ -218,7 +223,8 @@ while True:
         rect = cand.rect
         image = cand.image
         draw_candidate(paper_result, cand.rect, transformed[i], cand.guess, confidences[i])
-    cv2.imshow('paper_result', paper_result)
+    if IMSHOW_DBG:
+        cv2.imshow('paper_result', paper_result)
 
     # Transform back and draw on original frame
     frame_result = img_as_float(frame_clean.copy())
@@ -227,7 +233,10 @@ while True:
         image = cand.image
         reason = cand.reason
         draw_candidate(frame_result, cand.rect, transformed[i], cand.guess, confidences[i], h_inv, TL, reason, pretty=True)
-    cv2.imshow('frame_result', frame_result)
+    if IMSHOW_DBG:
+        cv2.imshow('frame_result', frame_result)
+    else:
+        cv2.imshow('number-tracking', frame_result)
 
     #print("DONE")
 
