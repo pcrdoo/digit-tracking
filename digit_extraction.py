@@ -70,8 +70,15 @@ class DigitExtractor:
         pts = np.round(cv2.boxPoints(rect))
         bbox = cv2.boundingRect(pts)
         x, y, w, h = bbox
-        if np.min(cv2.boxPoints(((x + w/2, y + h/2), (w, h), 0))) < 0:
-            return None
+        
+        if x < 0:
+            x = 0
+        if y < 0:
+            y = 0
+        if x + w > img.shape[1]:
+            w = img.shape[1] - x
+        if y + h > img.shape[0]:
+            h = img.shape[0] - y
 
         roi = img[y:y+h, x:x+w]
 
@@ -79,7 +86,12 @@ class DigitExtractor:
         new_c_x, new_c_y = new_center
 
         M = cv2.getRotationMatrix2D(new_center, ang_rot, 1)
-        roi = cv2.warpAffine(roi, M, (w, h))
+
+        #cv2.imshow('roi pre', roi)
+
+        roi = cv2.warpAffine(roi, M, (w, h), borderMode=cv2.BORDER_REPLICATE)
+
+        #cv2.imshow('roi post', roi)
 
         # rotate bounding box
         box = cv2.boxPoints((new_center, size, angle))

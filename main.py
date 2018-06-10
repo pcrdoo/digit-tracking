@@ -25,7 +25,7 @@ paper = None
 clf = DigitClassifier(mnist_img_height, mnist_img_width)
 ext = DigitExtractor()
 
-def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = None):
+def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = None, pretty = False):
     font = cv2.FONT_HERSHEY_SIMPLEX
 
     # center and box are used later for positioning
@@ -53,22 +53,31 @@ def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = Non
     center = np.int0(center)
     box = np.int0(box)
 
+    # actual bounding box?
+    x,y,w,h = cv2.boundingRect(box)
+
     # done, draw
-
-    cv2.drawContours(target,[box],0,(0,0,1),2)
-
-    x_off = int(center[0] - image.shape[1] / 2)
-    y_off = int(center[1] - image.shape[0] / 2)
-    try:
-        target[y_off:y_off+image.shape[0], x_off:x_off+image.shape[1]] = grey2rgb(image)
-    except ValueError:
-        pass
+    if not pretty:
+        cv2.drawContours(target,[box],0,(0,0,1),2)
+        
+        x_off = int(center[0] - image.shape[1] / 2)
+        y_off = int(center[1] - image.shape[0] / 2)
+        try:
+            target[y_off:y_off+image.shape[0], x_off:x_off+image.shape[1]] = grey2rgb(image)
+        except ValueError:
+            pass
+    else:
+        cv2.rectangle(target,(x,y),(x+w,y+h),(255,0,255),1)
 
     max_j = max(range(10), key=lambda j: confs[j])
     max_c = confs[max_j]
 
-    cv2.putText(target,str(max_j),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
-    #cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+    if not pretty:
+        cv2.putText(target,str(max_j),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+    else:
+        cv2.putText(target,str(max_j), (int(x + w/2 - 6), int(y) - 2), font, 0.6, (1,0,1), 2, cv2.LINE_AA)
+    
+    cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
 
 while True:
     # Capture frame-by-frame
@@ -172,7 +181,7 @@ while True:
         rect = cand.rect
         image = cand.image
         reason = cand.reason
-        draw_candidate(frame_result, cand.rect, transformed[i], confidences[i], h_inv, TL, reason)
+        draw_candidate(frame_result, cand.rect, transformed[i], confidences[i], h_inv, TL, reason, pretty=True)
     cv2.imshow('frame_result', frame_result)
 
     # First time you find a paper target patience is one
