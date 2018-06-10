@@ -9,14 +9,36 @@ from skimage.color import grey2rgb
 import matplotlib.pyplot as plt
 import cv2
 import numpy as np
+from utils import transform_img
 
 class MnistDataset:
 
-    def aug_stretch(batch):
-        pass
+    def pad(self, imgs):
+        # list of padded images
+        padded = []
+        batch_sz = imgs.shape[0]
+        for i in range(batch_sz):
+            if i % 1000 == 0:
+                print(i)
+            # binarize
+            img = imgs[i,:,:]
+            bin = (img > 0).astype(int)
+            wh_o = np.where(bin == 1)
+            wh = (wh_o[1], wh_o[0])
+            sz = wh[0].size 
+            t = np.dstack(wh)[0]
 
-    def aug_pad(batch):
-        pass
+            # find bounding rect
+            x,y,w,h = cv2.boundingRect(t)
+
+            # crop
+            cropped = img[y:y+h, x:x+w]
+            cropped2 = 1.0 - cropped
+
+            # transform
+            trans = transform_img(cropped2, 28, 28, True)
+            padded.append(trans)
+        return np.stack(padded)
 
     def __init__(self, augmentation):
         # input image dimensions
@@ -30,22 +52,14 @@ class MnistDataset:
         x_train = x_train.astype('float32')
         x_test = x_test.astype('float32')
 
+        # normalize
+        x_train /= 255
+        x_test /= 255
+
         # augment?
-        if augmentation == 'stretch':
-            x_train = aug_stretch(x_train)
-            x_test = aug_stretch(x_test)
-        elif augmentation == 'pad':
-            x_train = aug_pad(x_train)
-            x_test = aug_pad(x_test)
-        else:
-            # normalize
-            x_train /= 255
-            x_test /= 255
-        
-        # show first
-        print(x_train[0])
-        plt.imshow(x_train[0], cmap='binary')
-        plt.show()
+        if augmentation == 'pad':
+            x_train = self.pad(x_train)
+            x_test = self.pad(x_test)
 
         # unsqueeze
         if K.image_data_format() == 'channels_first':
@@ -68,3 +82,5 @@ class MnistDataset:
         # save
         self.x_train, self.x_test = x_train, x_test 
         self.y_train, self.y_test = y_train, y_test
+    
+# mn = MnistDataset('pad')

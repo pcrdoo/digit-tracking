@@ -32,7 +32,7 @@ class PaperFinder:
             return (B[2], B[3], B[0], B[1]), A
         return A, B
 
-    def filter_lines(self, lines):
+    def filter_lines(self, lines, shape):
         new_lines = []
         total = 0
         filtered = 0
@@ -40,6 +40,15 @@ class PaperFinder:
         for line in lines:
             total += 1
             xa, ya, xb, yb = line[0]
+
+            D = 5
+
+            if xa < D or xb < D or xa > shape[1] - D or xb > shape[1] - D:
+                continue
+                
+            if ya < D or yb < D or ya > shape[1] - D or yb > shape[1] - D:
+                continue
+
             A = np.asarray([xa, ya])
             B = np.asarray([xb, yb])
             ang = math.atan2(ya-yb, xa-xb)
@@ -128,14 +137,15 @@ class PaperFinder:
         frame_clean = frame.copy()
 
         # Find lines
-        frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        frame_bin = cv2.adaptiveThreshold(frame_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 13, 5)
-        frame_bin = cv2.bitwise_not(frame_bin)
+        #frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        #frame_bin = cv2.adaptiveThreshold(frame_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 13, 5)
+        #frame_bin = cv2.bitwise_not(frame_bin)
         edges = cv2.Canny(frame, 50, 150)
         lines = cv2.HoughLinesP(edges, 1, np.pi/180, 40, minLineLength=90, maxLineGap=20)
 
-        # cv2.imshow('edges', edges)
-        # cv2.imshow('lines', lines)
+        #cv2.imshow('fn', frame)
+        #cv2.imshow('edges', edges)
+        #cv2.imshow('lines', lines)
 
         # Nope
         if lines is None:
@@ -153,7 +163,7 @@ class PaperFinder:
             return False, None
 
         # Keep only relevant lines
-        new_lines = self.filter_lines(lines)
+        new_lines = self.filter_lines(lines, frame.shape)
 
         # Nope
         if (len(new_lines) < 4):
@@ -249,6 +259,7 @@ class PaperFinder:
 
         # Draw all lines, A and C are marked with colored dots
 
+
         cv2.circle(frame, (A[0], A[1]), 5, (0, 0, 255), 3)
         cv2.line(frame,(A[0],A[1]),(A[2],A[3]),(0,0,255),1)
 
@@ -260,6 +271,7 @@ class PaperFinder:
 
         cv2.circle(frame, (D[0], D[1]), 5, (255, 255, 255), 3)
         cv2.line(frame,(D[0],D[1]),(D[2],D[3]),(255,0,0),1)
+
 
         ######################################################################33
 

@@ -75,11 +75,14 @@ while True:
     nb_frame += 1
     # print("frame {}".format(nb_frame))
     ret, frame = cap.read()
-    print(frame.shape)
+    # print(frame.shape)
     if frame.shape != (480, 640):
         frame = cv2.resize(frame, (640, 480))
 
     k = chr(cv2.waitKey(1) & 0xFF)
+    #if k == 'l':
+    #    x = input()
+    # 
     #if k == 'l':
     #    ext._k += 0.02
     #    print('k=',ext._k)
@@ -131,10 +134,26 @@ while True:
     if not candidates:
         continue
     transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
-    all_imgs = np.array(transformed)
 
+    #cv2.imshow("first transformed", transformed[0])
+
+    #with open("log.txt", "w") as f:
+    #    for t in transformed:
+    #        f.write(str(t))
+    #        f.write("\n===\n")
+
+    all_imgs = np.array(transformed)
+    
     # Get confidences from the model
     confidences = clf.predict(all_imgs)
+    print("===== CONFIDENCES ==== ")
+    for i in range(len(confidences)):
+        verdict = "Digit {}:".format(i)
+        for j in range(10):
+            if confidences[i][j] > 0.01:
+                verdict += '{} ({}%) '.format(j, round(confidences[i][j]*100))
+        print(verdict)
+    print("===== =========== ==== ")
 
     # Draw candidates
     paper_result = img_as_float(paper)

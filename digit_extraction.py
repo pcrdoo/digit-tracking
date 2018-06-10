@@ -100,7 +100,6 @@ class DigitExtractor:
         dil = binary_closing(bin)
         dil = binary_erosion(bin, selem=disk(2))
         dil = 1.0 - dil
-        cv2.imshow("dil",dil)
         lab, max_label = label(dil, return_num=True)
 
         if not max_label:

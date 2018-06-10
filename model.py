@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from dataset import MnistDataset
 
-dataset = MnistDataset(augmentation='none') # stretch / pad
+dataset = MnistDataset(augmentation='pad') # stretch / pad
 
 batch_size = 128
 epochs = 12
@@ -36,6 +36,11 @@ model.fit(dataset.x_train, dataset.y_train,
           validation_data=(dataset.x_test, dataset.y_test))
 
 score = model.evaluate(dataset.x_test, dataset.y_test, verbose=0)
+
+model_json = model.to_json()
+with open("model/model.json", "w") as json_file:
+    json_file.write(model_json)
+model.save_weights('model/model.h5')
 
 print('Test loss:', score[0])
 print('Test accuracy:', score[1])
