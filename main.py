@@ -77,7 +77,7 @@ def draw_candidate(target, rect, image, confs, M = None, TL = None, reason = Non
     else:
         cv2.putText(target,str(max_j), (int(x + w/2 - 6), int(y) - 2), font, 0.6, (1,0,1), 2, cv2.LINE_AA)
     
-    cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
+    #cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
 
 while True:
     # Capture frame-by-frame
