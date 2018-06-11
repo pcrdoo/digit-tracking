@@ -25,7 +25,7 @@ mnist_img_width = 28
 mnist_img_height = 28
 
 # Objects
-paper_finder = PaperFinder(target_patience = 5)
+paper_finder = PaperFinder(target_patience = 2)
 paper = None
 clf = DigitClassifier(mnist_img_height, mnist_img_width)
 ext = DigitExtractor(IMSHOW_DBG)
@@ -333,7 +333,7 @@ while True:
 
         num_lost = len([c for c in candidates if c.lost_for > LOST_FRAMES])
         if num_lost > LOST_FACTOR * len(candidates):
-            print("Lost papre. Trying from the start.")
+            print("Lost paper. Trying from the start.")
             break
 
         if debug_tracking:
