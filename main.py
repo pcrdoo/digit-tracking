@@ -30,6 +30,11 @@ paper = None
 clf = DigitClassifier(mnist_img_height, mnist_img_width)
 ext = DigitExtractor(IMSHOW_DBG)
 
+# If at least LOST_FACTOR of all candidates have been lost for more than
+# LOST_FRAMES frames, reset everything
+LOST_FACTOR = 0.5
+LOST_FRAMES = 20
+
 def inverse_transform(rect, M, TL):
     # center and box are used later for positioning
     center = rect[0]
@@ -52,6 +57,11 @@ def inverse_transform(rect, M, TL):
 
     box = np.int0(box)
     return cv2.minAreaRect(box)
+
+def draw_rotrect(r, img, col):
+    box = cv2.boxPoints(r)
+    box = np.int0(box)
+    cv2.drawContours(img,[box],0,col,2)
 
 def draw_candidate(target, rect, image, guess, confs, M = None, TL = None, reason = None, pretty = False):
     font = cv2.FONT_HERSHEY_SIMPLEX
@@ -110,242 +120,249 @@ def update_candidate_confs(candidate, confidences):
     candidate.conf += confidences
     candidate.guess = max(range(10), key=lambda i: candidate.conf[i])
 
-while True:
-    # Capture frame-by-frame
-    nb_frame += 1
-    # print("frame {}".format(nb_frame))
-    ret, frame = cap.read()
-    # print(frame.shape)
-    if frame.shape != (480, 640):
-        frame = cv2.resize(frame, (640, 480))
-
-    k = chr(cv2.waitKey(1) & 0xFF)
-    if k == 'l':
-        ext._k += 0.01
-        print('k=',ext._k)
-    elif k == 'k':
-        ext._k -= 0.01
-        print('k=',ext._k)
-    elif k == 'p':
-        ext._ws += 2
-        print('ws=',ext._ws)
-    elif k == 'o':
-        ext._ws -= 2
-        print('ws=',ext._ws)
-    elif k == 'm':
-        ext._r += 0.01
-        print('r=',ext._r)
-    elif k == 'n':
-        ext._r -= 0.01
-        print('r=',ext._r)
-    elif k == 'q':
-        zzz = input()
-
-    # Skip?
-    if skip > 0:
-        skip -= 1
-        cv2.imshow("number-tracking", frame)
-        if IMSHOW_DBG:
-            if paper is not None:
-                cv2.imshow("paper", paper)
-        continue
-
-    # Frame info
-    (height, width) = frame.shape[:2]
-    frame_clean = frame.copy()
-
-    # Find paper
-    status, info = paper_finder.find(frame)
-    if not status:
-       # print("not find")
-        cv2.imshow("number-tracking", frame)
-        continue
-
-    # Found paper, show
-    paper, h_inv, TL = info
-    if IMSHOW_DBG:
-        cv2.imshow("number-tracking", frame)
-
-    """
-    paper_uncrop = np.pad(paper,
-                          ((TL[1], TL[1]),
-                           (TL[0], TL[0]),
-                           (0,0)),
-                          'constant',
-                          constant_values = ((128,)))
-    cv2.imshow("paper_uncrop", paper_uncrop)
-    """
-
-    # Extract digits
-    candidates = ext.extract_digits(paper)
-    if not candidates:
-        continue
-
-    # Sharpness
-    for cand in candidates:
-        img = grey2rgb(cand.image)
-        laplacian = cv2.Laplacian(cand.image,cv2.CV_64F)
-        sharpness = np.max(laplacian)
-        cand.sharpness = sharpness
-
-    # Transform images
-    transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
-
-    #cv2.imshow("first transformed", transformed[0])
-
-    #with open("log.txt", "w") as f:
-    #    for t in transformed:
-    #        f.write(str(t))
-    #        f.write("\n===\n")
-
-    all_imgs = np.array(transformed)
-    
-    # Get confidences from the model
-    filtered_candidates = []
-    CONF_THRESH = 0.5
-
-    # Threshold
-    confidences = clf.predict(all_imgs)
-    for i, cand in enumerate(candidates):
-        # set guess/conf and thresh on that
-        update_candidate_confs(cand, confidences[i])
-        cand.conf = confidences[i][cand.guess]
-        if cand.conf <= CONF_THRESH:
-            continue
-
-        # finger filter: if rect center is in banned area => remove
-        center = cand.rect[0]
-        c_x, c_y = center
-        p_h, p_w, _ = paper.shape
-        BAN_STRIP_H = p_h/3
-        BAN_STRIP_W = p_w/18
-        if c_x < BAN_STRIP_W and abs(p_h/2 - c_y) < BAN_STRIP_H/2:
-            continue
-        c_x = p_w - c_x
-        if c_x < BAN_STRIP_W and abs(p_h/2 - c_y) < BAN_STRIP_H/2:
-            continue
-
-        # push
-        filtered_candidates.append(cand)
-        #print("{} -> {}".format(cand.guess, cand.SH))
-    #print("DONE")
-
-    # Move back 
-    candidates = filtered_candidates
-
-    # Print confidences
-    print_confs = False 
-    if print_confs:
-        print("===== CONFIDENCES ==== ")
-        for i in range(len(confidences)):
-            verdict = "Digit {}:".format(i)
-            for j in range(10):
-                if confidences[i][j] > 0.01:
-                    verdict += '{} ({}%) '.format(j, round(confidences[i][j]*100))
-            print(verdict)
-        print("===== =========== ==== ")
-
-    # Draw candidates
-    paper_result = img_as_float(paper)
-    for i, cand in enumerate(candidates):
-        rect = cand.rect
-        image = cand.image
-        draw_candidate(paper_result, cand.rect, transformed[i], cand.guess, confidences[i])
-    if IMSHOW_DBG:
-        cv2.imshow('paper_result', paper_result)
-
-    # Transform back and draw on original frame
-    frame_result = img_as_float(frame_clean.copy())
-    for i, cand in enumerate(candidates):
-        rect = cand.rect
-        image = cand.image
-        reason = cand.reason
-        draw_candidate(frame_result, cand.rect, transformed[i], cand.guess, confidences[i], h_inv, TL, reason, pretty=True)
-    if IMSHOW_DBG:
-        cv2.imshow('frame_result', frame_result)
-    else:
-        cv2.imshow('number-tracking', frame_result)
-
-    for c in candidates:
-        c.rect = inverse_transform(c.rect, h_inv, TL)
-        c.dimensions = c.rect[1]
-
-    break
-
-first_cd = candidates
-idx = 0
-show_all = True
-show_old = False
-show_next_frame = True
-orig_frame = frame
-
-def draw_rotrect(r, img, col):
-    box = cv2.boxPoints(r)
-    box = np.int0(box)
-    cv2.drawContours(img,[box],0,col,2)
-
-tracked = False
-freeze = False
 
 while True:
-    if not freeze:
+    while True:
+        # Capture frame-by-frame
+        nb_frame += 1
+        # print("frame {}".format(nb_frame))
         ret, frame = cap.read()
-        candidates = ext.track_digits(candidates, frame, idx)
+        # print(frame.shape)
+        if frame.shape != (480, 640):
+            frame = cv2.resize(frame, (640, 480))
 
-    # Transform images
-    #transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
-    #all_imgs = np.array(transformed)
-    #confidences = clf.predict(all_imgs)
-    #for i, c in enumerate(candidates):
-    #    update_candidate_confs(c, confidences[i])
+        k = chr(cv2.waitKey(1) & 0xFF)
+        if k == 'l':
+            ext._k += 0.01
+            print('k=',ext._k)
+        elif k == 'k':
+            ext._k -= 0.01
+            print('k=',ext._k)
+        elif k == 'p':
+            ext._ws += 2
+            print('ws=',ext._ws)
+        elif k == 'o':
+            ext._ws -= 2
+            print('ws=',ext._ws)
+        elif k == 'm':
+            ext._r += 0.01
+            print('r=',ext._r)
+        elif k == 'n':
+            ext._r -= 0.01
+            print('r=',ext._r)
+        elif k == 'q':
+            zzz = input()
 
-    #freeze=True
-    k = chr(cv2.waitKey(1) & 0xFF)
-    if k == 'r':
-        idx += 1
-        print('Showing cand', idx)
-    elif k == 'e':
-        idx -= 1
-        print('Showing cand', idx)
-    elif k == 'a':
-        show_all = not show_all
-        print('Show all', show_all)
-    elif k == 'f':
-        show_next_frame = not show_next_frame
-        print('Showing next frame', show_next_frame)
-    elif k == 'o':
-        show_old = not show_old
-        print('Showing old cands',show_old)
-    elif k == 'x':
-        freeze = not freeze
+        # Skip?
+        if skip > 0:
+            skip -= 1
+            cv2.imshow("number-tracking", frame)
+            if IMSHOW_DBG:
+                if paper is not None:
+                    cv2.imshow("paper", paper)
+            continue
 
-    frame_result = img_as_float(frame.copy()) if show_next_frame else img_as_float(orig_frame.copy())
-    if show_all:
-        if show_old:
-            for c in first_cd:
-                draw_rotrect(c.rect, frame_result, (1,0,0))
+        # Frame info
+        (height, width) = frame.shape[:2]
+        frame_clean = frame.copy()
+
+        # Find paper
+        status, info = paper_finder.find(frame)
+        if not status:
+           # print("not find")
+            cv2.imshow("number-tracking", frame)
+            continue
+
+        # Found paper, show
+        paper, h_inv, TL = info
+        if IMSHOW_DBG:
+            cv2.imshow("number-tracking", frame)
+
+        """
+        paper_uncrop = np.pad(paper,
+                              ((TL[1], TL[1]),
+                               (TL[0], TL[0]),
+                               (0,0)),
+                              'constant',
+                              constant_values = ((128,)))
+        cv2.imshow("paper_uncrop", paper_uncrop)
+        """
+
+        # Extract digits
+        candidates = ext.extract_digits(paper)
+        if not candidates:
+            continue
+
+        # Sharpness
+        for cand in candidates:
+            img = grey2rgb(cand.image)
+            laplacian = cv2.Laplacian(cand.image,cv2.CV_64F)
+            sharpness = np.max(laplacian)
+            cand.sharpness = sharpness
+
+        # Transform images
+        transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
+
+        #cv2.imshow("first transformed", transformed[0])
+
+        #with open("log.txt", "w") as f:
+        #    for t in transformed:
+        #        f.write(str(t))
+        #        f.write("\n===\n")
+
+        all_imgs = np.array(transformed)
+        
+        # Get confidences from the model
+        filtered_candidates = []
+        CONF_THRESH = 0.5
+
+        # Threshold
+        confidences = clf.predict(all_imgs)
+        for i, cand in enumerate(candidates):
+            # set guess/conf and thresh on that
+            update_candidate_confs(cand, confidences[i])
+            cand.conf = confidences[i][cand.guess]
+            if cand.conf <= CONF_THRESH:
+                continue
+
+            # finger filter: if rect center is in banned area => remove
+            center = cand.rect[0]
+            c_x, c_y = center
+            p_h, p_w, _ = paper.shape
+            BAN_STRIP_H = p_h/3
+            BAN_STRIP_W = p_w/18
+            if c_x < BAN_STRIP_W and abs(p_h/2 - c_y) < BAN_STRIP_H/2:
+                continue
+            c_x = p_w - c_x
+            if c_x < BAN_STRIP_W and abs(p_h/2 - c_y) < BAN_STRIP_H/2:
+                continue
+
+            # push
+            filtered_candidates.append(cand)
+            #print("{} -> {}".format(cand.guess, cand.SH))
+        #print("DONE")
+
+        # Move back 
+        candidates = filtered_candidates
+
+        # Print confidences
+        print_confs = False 
+        if print_confs:
+            print("===== CONFIDENCES ==== ")
+            for i in range(len(confidences)):
+                verdict = "Digit {}:".format(i)
+                for j in range(10):
+                    if confidences[i][j] > 0.01:
+                        verdict += '{} ({}%) '.format(j, round(confidences[i][j]*100))
+                print(verdict)
+            print("===== =========== ==== ")
+
+        # Draw candidates
+        paper_result = img_as_float(paper)
+        for i, cand in enumerate(candidates):
+            rect = cand.rect
+            image = cand.image
+            draw_candidate(paper_result, cand.rect, transformed[i], cand.guess, confidences[i])
+        if IMSHOW_DBG:
+            cv2.imshow('paper_result', paper_result)
+
+        # Transform back and draw on original frame
+        frame_result = img_as_float(frame_clean.copy())
+        for i, cand in enumerate(candidates):
+            rect = cand.rect
+            image = cand.image
+            reason = cand.reason
+            draw_candidate(frame_result, cand.rect, transformed[i], cand.guess, confidences[i], h_inv, TL, reason, pretty=True)
+        if IMSHOW_DBG:
+            cv2.imshow('frame_result', frame_result)
+        else:
+            cv2.imshow('number-tracking', frame_result)
+
         for c in candidates:
-            draw_rotrect(c.rect, frame_result, (0,0,1))
-    else:
-        if not (idx >= len(candidates) or idx >= len(first_cd) or idx < 0):
-            draw_rotrect(first_cd[idx].rect, frame_result, (1,0,0))
-            draw_rotrect(candidates[idx].rect, frame_result, (0,0,1))
-            cv2.imshow('oldimg',first_cd[idx].image)
-            cv2.imshow('newimg',candidates[idx].image)
+            c.rect = inverse_transform(c.rect, h_inv, TL)
+            c.dimensions = c.rect[1]
 
-    cv2.imshow('frame_result', frame_result)
+        break
 
-    # Draw on original frame
-    frame_result = img_as_float(frame.copy())
-    for i, cand in enumerate(candidates):
-        rect = cand.rect
-        image = cand.image
-        reason = cand.reason
-        draw_candidate(frame_result, cand.rect, transformed[i], cand.guess,
-                confidences[i], None, None, None, pretty=True)
+    first_cd = candidates
+    idx = 0
+    show_all = True
+    show_old = False
+    show_next_frame = True
+    orig_frame = frame
 
-    cv2.imshow('number-tracking', frame_result)
+    tracked = False
+    freeze = False
+    debug_tracking = False
 
+    print("Found paper. Tracking now.")
+
+    while True:
+        if not freeze:
+            ret, frame = cap.read()
+            candidates = ext.track_digits(candidates, frame, idx)
+
+        # Transform images
+        #transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
+        #all_imgs = np.array(transformed)
+        #confidences = clf.predict(all_imgs)
+        #for i, c in enumerate(candidates):
+        #    update_candidate_confs(c, confidences[i])
+
+        #freeze=True
+        k = chr(cv2.waitKey(1) & 0xFF)
+        if k == 'r':
+            idx += 1
+            print('Showing cand', idx)
+        elif k == 'e':
+            idx -= 1
+            print('Showing cand', idx)
+        elif k == 'a':
+            show_all = not show_all
+            print('Show all', show_all)
+        elif k == 'f':
+            show_next_frame = not show_next_frame
+            print('Showing next frame', show_next_frame)
+        elif k == 'o':
+            show_old = not show_old
+            print('Showing old cands',show_old)
+        elif k == 'x':
+            freeze = not freeze
+        elif k == 't':
+            debug_tracking = not debug_tracking
+
+        num_lost = len([c for c in candidates if c.lost_for > LOST_FRAMES])
+        if num_lost > LOST_FACTOR * len(candidates):
+            print("Lost papre. Trying from the start.")
+            break
+
+        if debug_tracking:
+            frame_result = img_as_float(frame.copy()) if show_next_frame else img_as_float(orig_frame.copy())
+            if show_all:
+                if show_old:
+                    for c in first_cd:
+                        draw_rotrect(c.rect, frame_result, (1,0,0))
+                for c in candidates:
+                    draw_rotrect(c.rect, frame_result, (0,0,1))
+            else:
+                if not (idx >= len(candidates) or idx >= len(first_cd) or idx < 0):
+                    draw_rotrect(first_cd[idx].rect, frame_result, (1,0,0))
+                    draw_rotrect(candidates[idx].rect, frame_result, (0,0,1))
+                    cv2.imshow('oldimg',first_cd[idx].image)
+                    cv2.imshow('newimg',candidates[idx].image)
+
+            cv2.imshow('frame_result', frame_result)
+
+        # Draw on original frame
+        frame_result = img_as_float(frame.copy())
+        for i, cand in enumerate(candidates):
+            rect = cand.rect
+            image = cand.image
+            reason = cand.reason
+            draw_candidate(frame_result, cand.rect, transformed[i], cand.guess,
+                    confidences[i], None, None, None, pretty=True)
+
+        cv2.imshow('number-tracking', frame_result)
 
 # When everything done, release the capture
 cap.release()

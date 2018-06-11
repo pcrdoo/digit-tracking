@@ -19,8 +19,8 @@ BIG_BOX_AREA_FRACTION = 0.3
 MAGICNA_PATKA = 200
 
 MAX_SIZE_DIFF_FACTOR = 0.5
-MAX_POS_DIFF = 40
-POS_WEIGHT_ALPHA = 2.5
+MAX_POS_DIFF = 20
+POS_WEIGHT_ALPHA = 1.5
 
 class DigitCandidate:
     def __init__(self, rect, image, reason=None):
@@ -33,6 +33,7 @@ class DigitCandidate:
         self.sharpness = 0
         self.dimensions = rect[1]
         self.orig_image = image
+        self.lost_for = 0
 
     def __repr__(self):
         return "{R = " + repr(self.rect) + "}"
@@ -225,7 +226,6 @@ class DigitExtractor:
 
         new_candidates = []
 
-        evald=0
         i=0
         roi_img = self.preprocess_roi(rescale(gray, 0.5))
         all_pairings = []
@@ -234,6 +234,7 @@ class DigitExtractor:
             h, w = c.image.shape
             if h < 10 or w < 10:
                 new_candidates.append(c)
+                c.lost_for += 1
                 continue
 
             rx, ry, rw, rh = self.get_roi(c.rect, (new_frame.shape[1],
@@ -246,6 +247,7 @@ class DigitExtractor:
             roi = roi_img[ry:ry+rh, rx:rx+rw]
             if min(roi.shape) <= 0:
                 new_candidates.append(c)
+                c.lost_for += 1
                 continue
 
             if i-1==show_idx:
@@ -284,6 +286,7 @@ class DigitExtractor:
                 if not filt_cands:
                     #print("no filt cands")
                     new_candidates.append(c)
+                    c.lost_for += 1
                     continue
 
                 max_dp = max([dp for _, dp in filt_cands]) + 1
@@ -297,7 +300,6 @@ class DigitExtractor:
                     ssim = compare_ssim(cropped, c.orig_image)
                     score = (1.0 - pow(dp / max_dp, POS_WEIGHT_ALPHA)) * ssim
                     #print('[', i-1,'] r=',r,'ssim=',ssim,'dp=',dp,'score=',score)
-                    evald+=1
                     if score > best_score:
                         best_score = score
                         best_rect = r
@@ -306,6 +308,7 @@ class DigitExtractor:
                 if best_score < 0:
                     #print("no valid filt cands")
                     new_candidates.append(c)
+                    c.lost_for += 1
                 else:
                     cand = DigitCandidate(best_rect, best_image)
                     cand.dimensions = c.dimensions
@@ -315,9 +318,9 @@ class DigitExtractor:
 
                 #new_candidates.append(c)
             else:
+                c.lost_for += 1
                 new_candidates.append(c)
             #print('---')
 
         #print('***')
-        print('evald=',evald)
         return new_candidates
