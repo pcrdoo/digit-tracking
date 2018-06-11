@@ -9,6 +9,7 @@ from paper_finder import PaperFinder
 from digit_extraction import DigitExtractor
 from digit_classifier import DigitClassifier
 from utils import transform_img
+from time import sleep
 
 # IMSHOW DBG
 IMSHOW_DBG = False
@@ -279,11 +280,15 @@ def draw_rotrect(r, img, col):
     box = np.int0(box)
     cv2.drawContours(img,[box],0,col,2)
 
-while True:
-    #if not ext.tracked:
-    ret, frame = cap.read()
-    candidates = ext.track_digits(candidates, frame)
+tracked = False
+freeze = False
 
+while True:
+    if not freeze:
+        ret, frame = cap.read()
+        candidates = ext.track_digits(candidates, frame, idx)
+
+    #freeze=True
     k = chr(cv2.waitKey(1) & 0xFF)
     if k == 'r':
         idx += 1
@@ -300,6 +305,8 @@ while True:
     elif k == 'o':
         show_old = not show_old
         print('Showing old cands',show_old)
+    elif k == 'x':
+        freeze = not freeze
 
     frame_result = img_as_float(frame.copy()) if show_next_frame else img_as_float(orig_frame.copy())
     if show_all:
@@ -312,8 +319,11 @@ while True:
         if not (idx >= len(candidates) or idx >= len(first_cd) or idx < 0):
             draw_rotrect(first_cd[idx].rect, frame_result, (1,0,0))
             draw_rotrect(candidates[idx].rect, frame_result, (0,0,1))
+            cv2.imshow('oldimg',first_cd[idx].image)
+            cv2.imshow('newimg',candidates[idx].image)
 
     cv2.imshow('frame_result', frame_result)
+    sleep(0.1)
 
 # When everything done, release the capture
 cap.release()

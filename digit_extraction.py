@@ -8,7 +8,7 @@ from skimage.transform import rescale, resize
 from skimage.exposure import equalize_hist
 from math import sqrt
 import numpy as np
-import math 
+import math
 
 # http://opencv-python-tutroals.readthedocs.io/en/latest/py_tutorials/py_gui/py_video_display/py_video_display.html
 MIN_SIDE_RATIO = 0.20
@@ -16,10 +16,10 @@ MAX_SIDE_RATIO = 1.30
 MIN_AREA = 14 * 14
 MIN_PIXELS = 50
 BIG_BOX_AREA_FRACTION = 0.3
-MAGICNA_PATKA = 250
+MAGICNA_PATKA = 200
 
-MAX_SIZE_DIFF = 45
-MAX_POS_DIFF = 80
+MAX_SIZE_DIFF_FACTOR = 0.5
+MAX_POS_DIFF = 40
 
 class DigitCandidate:
     def __init__(self, rect, image, reason=None):
@@ -45,29 +45,30 @@ class DigitExtractor:
 
     def rect_eligible(self, rect, sz, area):
         w, h = rect[1]
+        print(w,h)
         if w > h:
             w, h = h, w
 
         if w == 0 or h == 0:
-            return False, "N"
+            return False
         
         if w < 4 or h < 4:
-            return False, "F"
+            return False
 
         q = w / h
         if q < MIN_SIDE_RATIO or q > MAX_SIDE_RATIO:
-            return False, "D"
+            return False
 
         if w * h > BIG_BOX_AREA_FRACTION * area:
-            return False, "V"
+            return False
 
         if sz < MIN_PIXELS:
-            return False, "X"
+            return False
 
         if w * h < MIN_AREA:
-            return False, "P"
+            return False
 
-        return True, "O"
+        return True
     
     def crop_rotrect(self, rect, img):
         center = rect[0]
@@ -112,7 +113,7 @@ class DigitExtractor:
 
         # rotate bounding box
         box = cv2.boxPoints((new_center, size, angle))
-        pts = np.int0(cv2.transform(np.array([box]), M))[0]    
+        pts = np.int0(cv2.transform(np.array([box]), M))[0] 
         pts[pts < 0] = 0
 
         first_row = np.min(pts[:, 1])
@@ -121,10 +122,10 @@ class DigitExtractor:
         last_col = np.max(pts[:, 0])
 
         img_crop = roi[first_row:last_row,first_col:last_col]
-        
+
         return img_crop
 
-    def rotrects_from_image(self, bin, scale=1, filter=True):
+    def rotrects_from_image(self, bin, scale=1, filter=True, area=None):
         lab, max_label = label(bin, return_num=True)
 
         if not max_label:
@@ -138,7 +139,9 @@ class DigitExtractor:
             components.append(component)
 
         rects = []
-        area = bin.shape[0] * bin.shape[1]
+        if not area:
+            area = bin.shape[0] * bin.shape[1]
+
         for c in components:
             sz = c[0].size
             t = np.dstack(c)[0] * scale
@@ -163,7 +166,7 @@ class DigitExtractor:
         return dil
 
     def preprocess_roi(self, roi):
-        thresh = threshold_sauvola(roi, window_size=5, k=0.13)
+        thresh = threshold_sauvola(roi, window_size=17, k=0.09)
         bin = roi > thresh
         dil = binary_closing(bin)
         dil = binary_erosion(bin, selem=disk(2))
@@ -173,7 +176,7 @@ class DigitExtractor:
         frame_o = img_as_float(frame_o)
         frame_o = rgb2grey(frame_o)
         frame = rescale(frame_o, 0.5)
-        gray = rgb2grey(frame)
+        gray = frame
         if self.IMSHOW_DBG:
             cv2.imshow('gray', gray)
 
@@ -213,19 +216,16 @@ class DigitExtractor:
 
         return (int(rx), int(ry), int(rw), int(rh))
 
-    def track_digits(self, old_candidates, new_frame):
-        if self.tracked:
-            return old_candidates
-
-        #self.tracked = True
-
+    def track_digits(self, old_candidates, new_frame, show_idx):
         frame_o = img_as_float(new_frame)
-        gray = rgb2grey(frame_o)
+        gray_o = rgb2grey(frame_o)
+        gray = equalize_hist(gray_o)
 
         new_candidates = []
 
         i=0
         for c in old_candidates:
+            i+=1
             h, w = c.image.shape
             if h < 10 or w < 10:
                 new_candidates.append(c)
@@ -239,10 +239,9 @@ class DigitExtractor:
                 continue
 
             roi = self.preprocess_roi(roi)
-            if i==0:
+            if i-1==show_idx:
                 cv2.imshow('roi',img_as_ubyte(roi))
-            i+=1
-            rects = self.rotrects_from_image(roi, 1, False)
+            rects = self.rotrects_from_image(roi, 1, True, frame_o.shape[0] * frame_o.shape[1])
             cands = []
             for rect in rects:
                 transl_rect = ((rect[0][0] + rx, rect[0][1] + ry), rect[1],
@@ -257,8 +256,8 @@ class DigitExtractor:
                 #    cropped[i][0], win_size=win_size))
                 filt_cands = []
                 for r in cands:
-                    dw = abs(r[1][0] - c.dimensions[0])
-                    dh = abs(r[1][1] - c.dimensions[1])
+                    dw = abs(max(r[1]) - max(c.dimensions))
+                    dh = abs(min(r[1]) - min(c.dimensions))
                     ds = math.sqrt(dw*dw + dh*dh)
 
                     dx = abs(r[0][0] - c.rect[0][0])
@@ -267,10 +266,10 @@ class DigitExtractor:
 
                     da = abs(r[2] - c.rect[2])
 
-                    #print('r=',r,'cr=',c.rect,'cd=',c.dimensions)
-                    #print('ds=',ds,'dp=',dp,'da=',da)
-                    if ds < MAX_SIZE_DIFF and dp < MAX_POS_DIFF:
-                        filt_cands.append(r)
+                    print('[', i-1, ']',' r=',r,'cr=',c.rect,'cd=',c.dimensions)
+                    print('[', i-1, ']',' ds=',ds,'dp=',dp,'da=',da)
+                    if ds < MAX_SIZE_DIFF_FACTOR * np.average(c.dimensions) and dp < MAX_POS_DIFF:
+                        filt_cands.append((r, dp))
 
                 best_score = -1
                 if not filt_cands:
@@ -278,13 +277,17 @@ class DigitExtractor:
                     new_candidates.append(c)
                     continue
 
-                for r in filt_cands:
-                    cropped = self.crop_rotrect(r, gray)
+                max_dp = max([dp for _, dp in filt_cands]) + 1
+
+                for r, dp in filt_cands:
+                    cropped = self.crop_rotrect(r, gray_o)
                     if cropped is None or min(cropped.shape) <= 5:
                         continue
 
                     cropped = resize(cropped, (h, w))
-                    score = compare_ssim(cropped, c.image)
+                    ssim = compare_ssim(cropped, c.image)
+                    score = (1.0 - dp / max_dp) * ssim
+                    print('[', i-1,'] r=',r,'ssim=',ssim,'dp=',dp,'score=',score)
                     if score > best_score:
                         best_score = score
                         best_rect = r
@@ -294,7 +297,9 @@ class DigitExtractor:
                     #print("no valid filt cands")
                     new_candidates.append(c)
                 else:
-                    new_candidates.append(DigitCandidate(best_rect, best_image))
+                    cand = DigitCandidate(best_rect, best_image)
+                    cand.dimensions = c.dimensions
+                    new_candidates.append(cand)
 
                 #new_candidates.append(c)
             else:
