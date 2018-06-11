@@ -107,7 +107,7 @@ def draw_candidate(target, rect, image, guess, confs, M = None, TL = None, reaso
         except ValueError:
             pass
     else:
-        cv2.rectangle(target,(x,y),(x+w,y+h),(255,0,255),1)
+        cv2.drawContours(target,[box],0,(1,0,1),1)
 
     if not pretty:
         cv2.putText(target,str(guess),(int(center[0]) - 5, int(center[1]) - 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
@@ -360,7 +360,7 @@ while True:
             image = cand.image
             reason = cand.reason
             draw_candidate(frame_result, cand.rect, transformed[i], cand.guess,
-                    confidences[i], None, None, None, pretty=True)
+                    confidences[i], None, None, None, True)
 
         cv2.imshow('number-tracking', frame_result)
 
