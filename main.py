@@ -323,7 +323,6 @@ while True:
             cv2.imshow('newimg',candidates[idx].image)
 
     cv2.imshow('frame_result', frame_result)
-    sleep(0.1)
 
 # When everything done, release the capture
 cap.release()
