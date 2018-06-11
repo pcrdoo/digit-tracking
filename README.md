@@ -5,7 +5,7 @@ Machine Learning course project.
  
 ![demo](demos/demo.gif)
 
-#### Authors
+## Authors
 
 [David Davidović (@geomaster)](https://github.com/geomaster)  
 [Ognjen Đuričić (@ogigoc)](https://github.com/ogigoc)  
