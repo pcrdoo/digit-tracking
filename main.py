@@ -106,6 +106,10 @@ def draw_candidate(target, rect, image, guess, confs, M = None, TL = None, reaso
     
     #cv2.putText(target,reason,(int(center[0]) - 5, int(center[1]) + 20), font, 0.6,(1,0,0),2,cv2.LINE_AA)
 
+def update_candidate_confs(candidate, confidences):
+    candidate.conf += confidences
+    candidate.guess = max(range(10), key=lambda i: candidate.conf[i])
+
 while True:
     # Capture frame-by-frame
     nb_frame += 1
@@ -204,11 +208,11 @@ while True:
     confidences = clf.predict(all_imgs)
     for i, cand in enumerate(candidates):
         # set guess/conf and thresh on that
-        cand.guess = max(range(10), key=lambda j: confidences[i][j])
+        update_candidate_confs(cand, confidences[i])
         cand.conf = confidences[i][cand.guess]
         if cand.conf <= CONF_THRESH:
             continue
-        
+
         # finger filter: if rect center is in banned area => remove
         center = cand.rect[0]
         c_x, c_y = center
@@ -288,6 +292,13 @@ while True:
         ret, frame = cap.read()
         candidates = ext.track_digits(candidates, frame, idx)
 
+    # Transform images
+    #transformed = [transform_img(c.image, mnist_img_height, mnist_img_width) for c in candidates]
+    #all_imgs = np.array(transformed)
+    #confidences = clf.predict(all_imgs)
+    #for i, c in enumerate(candidates):
+    #    update_candidate_confs(c, confidences[i])
+
     #freeze=True
     k = chr(cv2.waitKey(1) & 0xFF)
     if k == 'r':
@@ -323,6 +334,18 @@ while True:
             cv2.imshow('newimg',candidates[idx].image)
 
     cv2.imshow('frame_result', frame_result)
+
+    # Draw on original frame
+    frame_result = img_as_float(frame.copy())
+    for i, cand in enumerate(candidates):
+        rect = cand.rect
+        image = cand.image
+        reason = cand.reason
+        draw_candidate(frame_result, cand.rect, transformed[i], cand.guess,
+                confidences[i], None, None, None, pretty=True)
+
+    cv2.imshow('number-tracking', frame_result)
+
 
 # When everything done, release the capture
 cap.release()

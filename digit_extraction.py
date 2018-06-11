@@ -6,7 +6,7 @@ from skimage.measure import label, regionprops, compare_ssim
 from skimage.color import label2rgb, rgb2grey, grey2rgb
 from skimage.transform import rescale, resize
 from skimage.exposure import equalize_hist
-from math import sqrt
+from math import sqrt, pow
 import numpy as np
 import math
 
@@ -20,6 +20,7 @@ MAGICNA_PATKA = 200
 
 MAX_SIZE_DIFF_FACTOR = 0.5
 MAX_POS_DIFF = 40
+POS_WEIGHT_ALPHA = 2.5
 
 class DigitCandidate:
     def __init__(self, rect, image, reason=None):
@@ -27,10 +28,11 @@ class DigitCandidate:
         self.image = image
         self.reason = reason
 
-        self.guess = -1 
-        self.conf = 1
+        self.guess = -1
+        self.conf = np.zeros(10)
         self.sharpness = 0
         self.dimensions = rect[1]
+        self.orig_image = image
 
     def __repr__(self):
         return "{R = " + repr(self.rect) + "}"
@@ -45,7 +47,7 @@ class DigitExtractor:
 
     def rect_eligible(self, rect, sz, area):
         w, h = rect[1]
-        print(w,h)
+        #print(w,h)
         if w > h:
             w, h = h, w
 
@@ -166,7 +168,7 @@ class DigitExtractor:
         return dil
 
     def preprocess_roi(self, roi):
-        thresh = threshold_sauvola(roi, window_size=17, k=0.09)
+        thresh = threshold_sauvola(roi, window_size=11, k=0.09)
         bin = roi > thresh
         dil = binary_closing(bin)
         dil = binary_erosion(bin, selem=disk(2))
@@ -223,7 +225,10 @@ class DigitExtractor:
 
         new_candidates = []
 
+        evald=0
         i=0
+        roi_img = self.preprocess_roi(rescale(gray, 0.5))
+        all_pairings = []
         for c in old_candidates:
             i+=1
             h, w = c.image.shape
@@ -233,18 +238,22 @@ class DigitExtractor:
 
             rx, ry, rw, rh = self.get_roi(c.rect, (new_frame.shape[1],
                 new_frame.shape[0]))
-            roi = gray[ry:ry+rh, rx:rx+rw]
+            rx = int(rx / 2)
+            ry = int(ry / 2)
+            rw = int(rw / 2)
+            rh = int(rh / 2)
+
+            roi = roi_img[ry:ry+rh, rx:rx+rw]
             if min(roi.shape) <= 0:
                 new_candidates.append(c)
                 continue
 
-            roi = self.preprocess_roi(roi)
             if i-1==show_idx:
                 cv2.imshow('roi',img_as_ubyte(roi))
-            rects = self.rotrects_from_image(roi, 1, True, frame_o.shape[0] * frame_o.shape[1])
+            rects = self.rotrects_from_image(roi, 2, True, frame_o.shape[0] * frame_o.shape[1])
             cands = []
             for rect in rects:
-                transl_rect = ((rect[0][0] + rx, rect[0][1] + ry), rect[1],
+                transl_rect = ((rect[0][0] + 2*rx, rect[0][1] + 2*ry), rect[1],
                         rect[2])
                 cands.append(transl_rect)
 
@@ -266,8 +275,8 @@ class DigitExtractor:
 
                     da = abs(r[2] - c.rect[2])
 
-                    print('[', i-1, ']',' r=',r,'cr=',c.rect,'cd=',c.dimensions)
-                    print('[', i-1, ']',' ds=',ds,'dp=',dp,'da=',da)
+                    #print('[', i-1, ']',' r=',r,'cr=',c.rect,'cd=',c.dimensions)
+                    #print('[', i-1, ']',' ds=',ds,'dp=',dp,'da=',da)
                     if ds < MAX_SIZE_DIFF_FACTOR * np.average(c.dimensions) and dp < MAX_POS_DIFF:
                         filt_cands.append((r, dp))
 
@@ -285,9 +294,10 @@ class DigitExtractor:
                         continue
 
                     cropped = resize(cropped, (h, w))
-                    ssim = compare_ssim(cropped, c.image)
-                    score = (1.0 - dp / max_dp) * ssim
-                    print('[', i-1,'] r=',r,'ssim=',ssim,'dp=',dp,'score=',score)
+                    ssim = compare_ssim(cropped, c.orig_image)
+                    score = (1.0 - pow(dp / max_dp, POS_WEIGHT_ALPHA)) * ssim
+                    #print('[', i-1,'] r=',r,'ssim=',ssim,'dp=',dp,'score=',score)
+                    evald+=1
                     if score > best_score:
                         best_score = score
                         best_rect = r
@@ -299,6 +309,8 @@ class DigitExtractor:
                 else:
                     cand = DigitCandidate(best_rect, best_image)
                     cand.dimensions = c.dimensions
+                    cand.conf = c.conf
+                    cand.guess = c.guess
                     new_candidates.append(cand)
 
                 #new_candidates.append(c)
@@ -307,4 +319,5 @@ class DigitExtractor:
             #print('---')
 
         #print('***')
+        print('evald=',evald)
         return new_candidates
