@@ -1,10 +1,13 @@
-# number-tracking
-ConvNet that recognizes and tracks hadwritten digits via webcam
+# digit-tracking
 
-CoLab: https://colab.research.google.com/drive/1ZCfa4W4Z1adiNfTEwMmmxbZWlIKVafZh
 
-TODO main loop:
-1. Look for paper
-2. Extract digits
-3. Track and aggregate confidences for first N frames
-4. Just track; when a digit is lost restart main loop
+
+Detection and tracking of handwritten digits on a sheet of paper via webcam, using a CNN. Machine Learning course project.
+
+#### Authors
+
+[David Davidović, @geomaster](https://github.com/geomaster)
+[Ognjen Đuričić, @ogigoc](https://github.com/ogigoc)
+[Nikola Jovanović, @rand0musername](https://github.com/rand0musername)
+
+

@@ -2,7 +2,7 @@
 # coding: utf-8
 
 # ### Today:
-# * Intrudiction to Computer Vision
+# * Introduction to Computer Vision
 #     * Basic operations
 #     * GUI featuers
 #     * Image processing
