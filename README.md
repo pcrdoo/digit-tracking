@@ -1,4 +1,4 @@
-# digit-tracking
+# Digit Tracking
 
 Detection and tracking of handwritten digits on a sheet of paper via webcam, using a CNN.  
 Machine Learning course project.
